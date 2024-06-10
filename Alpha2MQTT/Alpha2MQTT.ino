@@ -1008,20 +1008,29 @@ void mqttReconnect()
 			Serial.println("Connected MQTT");
 
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_READ_HANDLED_REGISTER);
+// DAVE
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_READ_RAW_REGISTER);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_SET_CHARGE);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_SET_DISCHARGE);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_SET_NORMAL);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_WRITE_RAW_SINGLE_REGISTER);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_WRITE_RAW_DATA_REGISTER);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_READ_HANDLED_REGISTER_ALL);
+			_mqtt.unsubscribe(subscriptionDef);
 			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 
 			// Subscribe or resubscribe to topics.
