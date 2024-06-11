@@ -619,8 +619,8 @@ void setupWifi()
 
 	// Output some debug information
 #ifdef DEBUG
-	Serial.print("WiFi connected, IP is");
-	Serial.print(WiFi.localIP());
+	Serial.print("WiFi connected, IP is ");
+	Serial.println(WiFi.localIP());
 #endif
 
 	// Connected, so ditch out with blank screen
