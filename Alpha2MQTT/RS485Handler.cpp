@@ -146,26 +146,26 @@ void RS485Handler::outputFrameToSerial(bool transmit, uint8_t frame[], byte actu
 	_debugOutput[0] = '\0';
 	if (transmit)
 	{
-		strncat(_debugOutput, "Tx: ", 4);
+		strlcat(_debugOutput, "Tx: ", sizeof(_debugOutput));
 	}
 	else
 	{
-		strncat(_debugOutput, "Rx: ", 4);
+		strlcat(_debugOutput, "Rx: ", sizeof(_debugOutput));
 	}
 
 	if (actualFrameSize == 0)
 	{
-		strncat(_debugOutput, "Nothing", 7);
+		strlcat(_debugOutput, "Nothing", sizeof(_debugOutput));
 	}
 	else
 	{
 		for (int counter = 0; counter < actualFrameSize; counter++)
 		{
-			sprintf(debugByte, "%02X", frame[counter]);
-			strncat(_debugOutput, debugByte, 2);
+		    snprintf(debugByte, sizeof(debugByte), "%02X", frame[counter]);
+			strlcat(_debugOutput, debugByte, , sizeof(_debugOutput));
 			if (counter < actualFrameSize - 1)
 			{
-				strncat(_debugOutput, " ", 1);
+				strlcat(_debugOutput, " ", sizeof(_debugOutput));
 			}
 		}
 	}
