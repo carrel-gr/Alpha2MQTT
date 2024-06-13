@@ -677,38 +677,9 @@ void updateOLED(bool justStatus, const char* line2, const char* line3, const cha
 	char line3Contents[OLED_CHARACTER_WIDTH];
 	char line4Contents[OLED_CHARACTER_WIDTH];
 
-	// Ensure only dealing with 10 chars passed in, and null terminate.
-	if (strlen(line2) > OLED_CHARACTER_WIDTH - 1)
-	{
-		strncpy(line2Contents, line2, OLED_CHARACTER_WIDTH - 1);
-		line2Contents[OLED_CHARACTER_WIDTH - 1] = 0;
-	}
-	else
-	{
-		strcpy(line2Contents, line2);
-	}
-
-
-	if (strlen(line3) > OLED_CHARACTER_WIDTH - 1)
-	{
-		strncpy(line3Contents, line3, OLED_CHARACTER_WIDTH - 1);
-		line3Contents[OLED_CHARACTER_WIDTH - 1] = 0;
-	}
-	else
-	{
-		strcpy(line3Contents, line3);
-	}
-
-
-	if (strlen(line4) > OLED_CHARACTER_WIDTH - 1)
-	{
-		strncpy(line4Contents, line4, OLED_CHARACTER_WIDTH - 1);
-		line4Contents[OLED_CHARACTER_WIDTH - 1] = 0;
-	}
-	else
-	{
-		strcpy(line4Contents, line4);
-	}
+	strlcpy(line2Contents, line2, sizeof(line2Contents));
+	strlcpy(line3Contents, line3, sizeof(line3Contents));
+	strlcpy(line4Contents, line4, sizeof(line4Contents));
 
 	// Only update the operating indicator once per half second.
 	if (checkTimer(&updateStatusBar, UPDATE_STATUS_BAR_INTERVAL))
