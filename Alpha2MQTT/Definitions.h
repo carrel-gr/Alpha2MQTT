@@ -67,10 +67,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // If you need more than one Alpha2MQTT on your network, give them unique names.
 #define DEVICE_NAME "Alpha2MQTT"
 
-// If your OLED doesn't have an RST pin, set this to true.
+// If your OLED does have an RST pin, set this.
 // An OLED Shield compatible with an ESP8266 does have a RESET pin and it is linked to GPIO0 if using an ESP8266.
 // If you are using the same OLED Shield with an ESP32, by default for this project it is linked to GIO13.
-//#define OLED_HAS_RST_PIN true
+#define OLED_HAS_RST_PIN
 
 // Default address of inverter is 0x55 as per Alpha Modbus documentation.  If you have altered it, reflect that change here.
 #define ALPHA_SLAVE_ID 0x55
