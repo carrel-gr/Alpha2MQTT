@@ -1030,6 +1030,7 @@ enum mqttEntityId {
     entityPvPwr,
     entityPvEnergy,
     entityDispatchMode,
+    entitySocTarget,
     entityBatCap,
     entityMaxCellTemp,
     entityInverterTemp,

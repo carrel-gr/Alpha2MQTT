@@ -96,16 +96,17 @@ static struct mqttState _mqttAllEntities[] PROGMEM =
     { mqttEntityId::entityErrors,             "REG_DAVE_ERRORS",      mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityRSSI,               "Alpha2MQTT_RSSI",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityVersion,            "Alpha2MQTT_version",   mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
-    { mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassBattery },
+    { mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassBattery },
     { mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
-    { mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
-    { mqttEntityId::entityBatEnergyDischarge, "ESS_Energy_Discharge", mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityBatEnergyDischarge, "ESS_Energy_Discharge", mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
     { mqttEntityId::entityGridPwr,            "Grid_Power",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
-    { mqttEntityId::entityGridEnergyTo,       "Grid_Energy_To",       mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
-    { mqttEntityId::entityGridEnergyFrom,     "Grid_Energy_From",     mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityGridEnergyTo,       "Grid_Energy_To",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityGridEnergyFrom,     "Grid_Energy_From",     mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
     { mqttEntityId::entityPvPwr,              "Solar_Power",          mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
-    { mqttEntityId::entityPvEnergy,           "Solar_Energy",         mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityPvEnergy,           "Solar_Energy",         mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
     { mqttEntityId::entityDispatchMode,       "Dispatch_Mode",        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassSelect },
+    { mqttEntityId::entitySocTarget,          "SOC_Target"   ,        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassBox },
     { mqttEntityId::entityMaxCellTemp,        "Max_Cell_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
     { mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityInverterTemp,       "Inverter_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
@@ -1079,6 +1080,16 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE, rs);
 #endif // DEBUG_NO_RS485
 	break;
+    case mqttEntityId::entitySocTarget:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedShort;
+	rs->unsignedShortValue = 95;
+	sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.4);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_SOC, rs);
+#endif // DEBUG_NO_RS485
+	break;
     case mqttEntityId::entityDispatchMode:
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedShort;
@@ -1407,6 +1418,8 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
 	break;
     case homeAssistantClass::homeAssistantClassBox:
+	sprintf(stateAddition, "%s, \"mode\": \"box\"", stateAddition);
+	break;
     case homeAssistantClass::homeAssistantClassInfo:
 	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
 	break;
@@ -1425,8 +1438,9 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
     strcpy(stateAddition, "");
     switch (singleEntity->entityId) {
     case mqttEntityId::entityRegNum:
-	sprintf(stateAddition, ", \"icon\": \"mdi:pound\"");
-	sprintf(stateAddition, "%s, \"min\": -1, \"max\": 41000, \"mode\": \"box\"", stateAddition);
+	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	sprintf(stateAddition, "%s, \"icon\": \"mdi:pound\"", stateAddition);
+	sprintf(stateAddition, "%s, \"min\": -1, \"max\": 41000", stateAddition);
 	break;
     case mqttEntityId::entityRegValue:
 	sprintf(stateAddition, ", \"icon\": \"mdi:folder-pound-outline\"");
@@ -1469,6 +1483,13 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		DISPATCH_START_STOP_DESC, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC, DISPATCH_MODE_ECO_MODE_DESC,
 		DISPATCH_MODE_FCAS_MODE_DESC, DISPATCH_MODE_LOAD_FOLLOWING_DESC, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC, DISPATCH_MODE_NORMAL_MODE_DESC,
 		DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC, DISPATCH_MODE_PV_POWER_SETTING_DESC, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
+	break;
+    case mqttEntityId::entitySocTarget:
+	sprintf(stateAddition, "%s, \"device_class\": \"battery\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"%%\"", stateAddition);
+	sprintf(stateAddition, "%s, \"icon\": \"mdi:battery\"", stateAddition);
+	sprintf(stateAddition, "%s, \"min\": 10, \"max\": 100", stateAddition);
 	break;
     case mqttEntityId::entityRSSI:
 	sprintf(stateAddition, ", \"icon\": \"mdi:wifi\"");
