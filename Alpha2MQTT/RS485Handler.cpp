@@ -100,35 +100,64 @@ Following the send, kicks off a synchronous listen for response
 */
 modbusRequestAndResponseStatusValues RS485Handler::sendModbus(uint8_t frame[], byte actualFrameSize, modbusRequestAndResponse* resp)
 {
+	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+	int tries = 0;
+
 	//Calculate the CRC and overwrite the last two bytes.
 	calcCRC(frame, actualFrameSize);
 
-	// After some liaison with a user of Alpha2MQTT on a 115200 baud rate, this fixed inconsistent retrieval
+	while (result == modbusRequestAndResponseStatusValues::preProcessing) {
+		// After some liaison with a user of Alpha2MQTT on a 115200 baud rate, this fixed inconsistent retrieval
 #ifdef REQUIRE_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL
-	delay(REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL);
+		delay(REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL);
 #endif
 
-	// Make sure there are no spurious characters in the in/out buffer.
-	flushRS485();
+		// Make sure there are no spurious characters in the in/out buffer.
+		flushRS485();
 
-	//Send
-	digitalWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_TX);
+		//Send
+		digitalWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_TX);
 
-	// Debug output the frame?
+		// Debug output the frame?
 #ifdef DEBUG_OUTPUT_TX_RX
-	outputFrameToSerial(true, frame, actualFrameSize);
+		outputFrameToSerial(true, frame, actualFrameSize);
 #endif
 
-	_RS485Serial->write(frame, actualFrameSize);
-	// Ensure it's sent on its way.
-	_RS485Serial->flush();
+		_RS485Serial->write(frame, actualFrameSize);
+		// Ensure it's sent on its way.
+		_RS485Serial->flush();
 
-	// It's important to reset the SERIAL_COMMUNICATION_CONTROL_PIN as soon as
-	// we finish sending so that the serial port can start to buffer the response.
+		// It's important to reset the SERIAL_COMMUNICATION_CONTROL_PIN as soon as
+		// we finish sending so that the serial port can start to buffer the response.
 
-	digitalWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_RX);
+		digitalWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_RX);
 	
-	return listenResponse(resp);
+		while (result == modbusRequestAndResponseStatusValues::preProcessing) {
+			result = listenResponse(resp);
+			if (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess ||
+			    result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess ||
+			    result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				// In case of multpile talkers, try to make sure this response is for us.
+				if (resp->functionCode != frame[1]) {
+					result = modbusRequestAndResponseStatusValues::preProcessing;
+				} else {
+					if ((resp->functionCode == MODBUS_FN_READDATAREGISTER) && (resp->dataSize != (frame[5] * 2))) {
+						result = modbusRequestAndResponseStatusValues::preProcessing;
+					}
+				}
+			}
+		}
+
+		if (tries < 3 &&
+		    result != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess &&
+		    result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess &&
+		    result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			tries++;
+			delay(250);
+			result = modbusRequestAndResponseStatusValues::preProcessing;
+		}
+	}
+	return result;
 }
 
 
@@ -192,17 +221,11 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 	bool gotSlaveID = false;
 	bool gotFunctionCode = false;
 	bool gotData = false;
-
 	bool timedOut = false;
-
-
-
-
 	bool breakOut = false;
 
 	modbusRequestAndResponse dummy;
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
-
 
 	if (!resp)
 	{
