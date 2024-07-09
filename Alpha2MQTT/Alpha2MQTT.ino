@@ -20,6 +20,7 @@ First, go and customise options at the top of Definitions.h!
 #include <ESP8266WiFi.h>
 #elif defined MP_ESP32
 #include <WiFi.h>
+#define LED_BUILTIN 2
 #endif
 #include <PubSubClient.h>
 #include <SPI.h>
@@ -28,29 +29,42 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v1.27";
+char _version[6] = "v2.12";
+char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
+char deviceBatteryType[32];
+char haUniqueId[32];
+char statusTopic[128];
 
 // WiFi parameters
 WiFiClient _wifi;
+#if defined MP_ESP8266
+#define WIFI_MAX_POWER 20.5
+#define WIFI_MIN_POWER 12
+float wifiPower = WIFI_MAX_POWER;
+#define WIFI_CONNECTED WiFi.isConnected()
+#else // MP_ESP8266
+#define WIFI_CONNECTED 1
+#endif // MP_ESP8266
+uint32_t wifiReconnects = 0;
 
 // MQTT parameters
 PubSubClient _mqtt(_wifi);
 
 // Buffer Size (and therefore payload size calc)
-int _bufferSize;
 int _maxPayloadSize;
-
 
 // I want to declare this once at a modular level, keep the heap somewhere in check.
 //char _mqttPayload[MAX_MQTT_PAYLOAD_SIZE] = "";
 char* _mqttPayload;
+
+bool resendHaData = false;
+bool resendAllData = false;
 
 // OLED variables
 char _oledOperatingIndicator = '*';
 char _oledLine2[OLED_CHARACTER_WIDTH] = "";
 char _oledLine3[OLED_CHARACTER_WIDTH] = "";
 char _oledLine4[OLED_CHARACTER_WIDTH] = "";
-
 
 // RS485 and AlphaESS functionality are packed up into classes
 // to keep separate from the main program logic.
@@ -60,317 +74,46 @@ RegisterHandler* _registerHandler;
 // Fixed char array for messages to the serial port
 char _debugOutput[100];
 
-
-
-// Schedules
-/*
-Add any number of handled registers in this list and they will be
-read and returned every 10 seconds.
-*/
-static struct mqttState _mqttTenSecondStatusRegisters[] PROGMEM =
-{
-	{ REG_BATTERY_HOME_R_SOC, "REG_BATTERY_HOME_R_SOC" },												// State Of Charge
-	{ REG_BATTERY_HOME_R_BATTERY_POWER, "REG_BATTERY_HOME_R_BATTERY_POWER" },							// Battery Power
-	{ REG_BATTERY_HOME_R_VOLTAGE, "REG_BATTERY_HOME_R_VOLTAGE" },										// Battery Voltage
-	{ REG_BATTERY_HOME_R_CURRENT, "REG_BATTERY_HOME_R_CURRENT" },										// Battery Current
-	{ REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE" },				// Highest Battery Temp
-	{ REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, "REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1" },					// Total Grid Power (+/-)
-	{ REG_CUSTOM_GRID_CURRENT_A_PHASE, "REG_CUSTOM_GRID_CURRENT_A_PHASE" },								// Grid Current (Phase A)
-	{ REG_PV_METER_R_TOTAL_ACTIVE_POWER_1, "REG_PV_METER_R_TOTAL_ACTIVE_POWER_1" },						// Total PV Power (+/-)
-
-	{ REG_INVERTER_HOME_R_CURRENT_L1, "REG_INVERTER_HOME_R_CURRENT_L1" },								// Inverter Current (L1) (Phase A)
-	{ REG_INVERTER_HOME_R_POWER_L1_1, "REG_INVERTER_HOME_R_POWER_L1_1" },								// Inverter Power (L1) (Phase A)
-	{ REG_INVERTER_HOME_R_INVERTER_TEMP, "REG_INVERTER_HOME_R_INVERTER_TEMP" },							// Inverter Temp
-	{ REG_CUSTOM_LOAD, "REG_CUSTOM_LOAD" },																// Consumption
-
-	{ REG_DISPATCH_RW_DISPATCH_START, "REG_DISPATCH_RW_DISPATCH_START" },
-	{ REG_DISPATCH_RW_DISPATCH_MODE, "REG_DISPATCH_RW_DISPATCH_MODE" },
-	{ REG_DISPATCH_RW_ACTIVE_POWER_1, "REG_DISPATCH_RW_ACTIVE_POWER_1" },
-	{ REG_DISPATCH_RW_DISPATCH_SOC, "REG_DISPATCH_RW_DISPATCH_SOC" },
-	{ REG_DISPATCH_RW_DISPATCH_TIME_1, "REG_DISPATCH_RW_DISPATCH_TIME_1" },
-
-	{ REG_INVERTER_HOME_R_PV1_POWER_1, "REG_INVERTER_HOME_R_PV1_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV2_POWER_1, "REG_INVERTER_HOME_R_PV2_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV3_POWER_1, "REG_INVERTER_HOME_R_PV3_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV4_POWER_1, "REG_INVERTER_HOME_R_PV4_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV5_POWER_1, "REG_INVERTER_HOME_R_PV5_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV6_POWER_1, "REG_INVERTER_HOME_R_PV6_POWER_1" },
-
-	{ REG_CUSTOM_TOTAL_SOLAR_POWER, "REG_CUSTOM_TOTAL_SOLAR_POWER" }
-
-	/*
-	* 
-	* Alpha don't appear to expose Solar Current, Battery Cycles
-	* They don't expose Load either via a register, it is a calculation which Alpha ESS provided the logic for.
-	* Alpha don't also expose today's generation / exported / purchased / consumed, so if using Home Assistant leverage
-	* https://www.home-assistant.io/integrations/integration/#energy
-	* Will convert regular submitted power readings (in W or kW) into kWh for use in Utility Meters
-	* https://www.home-assistant.io/integrations/utility_meter/
-	* Which you can configure numerous of, and set to restart daily, weekly, monthly, etc.
-	*/
-};
+uint32_t receivedCallbacks = 0;
+uint32_t unknownCallbacks = 0;
+uint32_t badCallbacks = 0;
+int32_t regNumberToRead = -1;
+//#ifdef DEBUG_NO_RS485
+uint32_t daveErrorCode = 0;
+uint16_t dispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
+char dispatchModeDesc[32] = DISPATCH_MODE_LOAD_FOLLOWING_DESC;
+//#endif // DEBUG_NO_RS485
 
 /*
-Add any number of handled registers in this list and they will be
-read and returned every minute.
-*/
-static struct mqttState _mqttOneMinuteStatusRegisters[] PROGMEM =
+ * Home Assistant auto-discovered values
+ */
+static struct mqttState _mqttAllEntities[] PROGMEM =
 {
-	{ REG_GRID_METER_R_VOLTAGE_OF_A_PHASE, "REG_GRID_METER_R_VOLTAGE_OF_A_PHASE" },
-	{ REG_PV_METER_R_VOLTAGE_OF_A_PHASE, "REG_PV_METER_R_VOLTAGE_OF_A_PHASE" },
-	{ REG_INVERTER_HOME_R_VOLTAGE_L1, "REG_INVERTER_HOME_R_VOLTAGE_L1" },
+#ifdef DEBUG_FREEMEM
+    { mqttEntityId::entityFreemem,      "Alpha2MQTT_freemem", mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
+#endif
+    { mqttEntityId::entityCallbacks,          "REG_DAVE_CALLBACKS",   mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityErrors,             "REG_DAVE_ERRORS",      mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityRSSI,               "Alpha2MQTT_RSSI",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityVersion,            "Alpha2MQTT_version",   mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassBattery },
+    { mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
+    { mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityBatEnergyDischarge, "ESS_Energy_Discharge", mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityGridPwr,            "Grid_Power",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
+    { mqttEntityId::entityGridEnergyTo,       "Grid_Energy_To",       mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityGridEnergyFrom,     "Grid_Energy_From",     mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityPvPwr,              "Solar_Power",          mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
+    { mqttEntityId::entityPvEnergy,           "Solar_Energy",         mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassEnergy },
+    { mqttEntityId::entityDispatchMode,       "Dispatch_Mode",        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassSelect },
+    { mqttEntityId::entityMaxCellTemp,        "Max_Cell_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
+    { mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityInverterTemp,       "Inverter_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
+    { mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
+    { mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo }
 };
 
-/*
-Add any number of handled registers in this list and they will be
-read and returned every five minutes.
-*/
-static struct mqttState _mqttFiveMinuteStatusRegisters[] PROGMEM =
-{
-	{ REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1, "REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1, "REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_ENERGY_CHARGE_FROM_GRID_1, "REG_BATTERY_HOME_R_BATTERY_ENERGY_CHARGE_FROM_GRID_1" }
-};
-
-/*
-Add any number of handled registers in this list and they will be
-read and returned every hour.
-*/
-static struct mqttState _mqttOneHourStatusRegisters[] PROGMEM =
-{
-	{ REG_GRID_METER_R_FREQUENCY, "REG_GRID_METER_R_FREQUENCY" },
-	{ REG_PV_METER_R_FREQUENCY, "REG_PV_METER_R_FREQUENCY" },
-	{ REG_INVERTER_HOME_R_FREQUENCY, "REG_INVERTER_HOME_R_FREQUENCY" },
-	{ REG_SYSTEM_OP_R_SYSTEM_FAULT_1, "REG_SYSTEM_OP_R_SYSTEM_FAULT_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_1" }
-};
-
-/*
-Add any number of handled registers in this list and they will be
-read and returned every day.
-*/
-static struct mqttState _mqttOneDayStatusRegisters[] PROGMEM =
-{
-	{ REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, "REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1" },
-	{ REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, "REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1" },
-	{ REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, "REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1" },
-	{ REG_PV_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, "REG_PV_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1" },
-	{ REG_PV_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, "REG_PV_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1" }
-};
-
-
-/*
-Every handled register
-*/
-
-static struct mqttState _mqttAllHandledRegisters[] PROGMEM =
-{
-	{ REG_GRID_METER_RW_GRID_METER_CT_ENABLE, "REG_GRID_METER_RW_GRID_METER_CT_ENABLE" },
-	{ REG_GRID_METER_RW_GRID_METER_CT_RATE, "REG_GRID_METER_RW_GRID_METER_CT_RATE" },
-	{ REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, "REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1" },
-	{ REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, "REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1" },
-	{ REG_GRID_METER_R_VOLTAGE_OF_A_PHASE, "REG_GRID_METER_R_VOLTAGE_OF_A_PHASE" },
-	{ REG_GRID_METER_R_VOLTAGE_OF_B_PHASE, "REG_GRID_METER_R_VOLTAGE_OF_B_PHASE" },
-	{ REG_GRID_METER_R_VOLTAGE_OF_C_PHASE, "REG_GRID_METER_R_VOLTAGE_OF_C_PHASE" },
-	{ REG_GRID_METER_R_CURRENT_OF_A_PHASE, "REG_GRID_METER_R_CURRENT_OF_A_PHASE" },
-	{ REG_GRID_METER_R_CURRENT_OF_B_PHASE, "REG_GRID_METER_R_CURRENT_OF_B_PHASE" },
-	{ REG_GRID_METER_R_CURRENT_OF_C_PHASE, "REG_GRID_METER_R_CURRENT_OF_C_PHASE" },
-	{ REG_GRID_METER_R_FREQUENCY, "REG_GRID_METER_R_FREQUENCY" },
-	{ REG_GRID_METER_R_ACTIVE_POWER_OF_A_PHASE_1, "REG_GRID_METER_R_ACTIVE_POWER_OF_A_PHASE_1" },
-	{ REG_GRID_METER_R_ACTIVE_POWER_OF_B_PHASE_1, "REG_GRID_METER_R_ACTIVE_POWER_OF_B_PHASE_1" },
-	{ REG_GRID_METER_R_ACTIVE_POWER_OF_C_PHASE_1, "REG_GRID_METER_R_ACTIVE_POWER_OF_C_PHASE_1" },
-	{ REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, "REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1" },
-	{ REG_GRID_METER_R_REACTIVE_POWER_OF_A_PHASE_1, "REG_GRID_METER_R_REACTIVE_POWER_OF_A_PHASE_1" },
-	{ REG_GRID_METER_R_REACTIVE_POWER_OF_B_PHASE_1, "REG_GRID_METER_R_REACTIVE_POWER_OF_B_PHASE_1" },
-	{ REG_GRID_METER_R_REACTIVE_POWER_OF_C_PHASE_1, "REG_GRID_METER_R_REACTIVE_POWER_OF_C_PHASE_1" },
-	{ REG_GRID_METER_R_TOTAL_REACTIVE_POWER_1, "REG_GRID_METER_R_TOTAL_REACTIVE_POWER_1" },
-	{ REG_GRID_METER_R_APPARENT_POWER_OF_A_PHASE_1, "REG_GRID_METER_R_APPARENT_POWER_OF_A_PHASE_1" },
-	{ REG_GRID_METER_R_APPARENT_POWER_OF_B_PHASE_1, "REG_GRID_METER_R_APPARENT_POWER_OF_B_PHASE_1" },
-	{ REG_GRID_METER_R_APPARENT_POWER_OF_C_PHASE_1, "REG_GRID_METER_R_APPARENT_POWER_OF_C_PHASE_1" },
-	{ REG_GRID_METER_R_TOTAL_APPARENT_POWER_1, "REG_GRID_METER_R_TOTAL_APPARENT_POWER_1" },
-	{ REG_GRID_METER_R_POWER_FACTOR_OF_A_PHASE, "REG_GRID_METER_R_POWER_FACTOR_OF_A_PHASE" },
-	{ REG_GRID_METER_R_POWER_FACTOR_OF_B_PHASE, "REG_GRID_METER_R_POWER_FACTOR_OF_B_PHASE" },
-	{ REG_GRID_METER_R_POWER_FACTOR_OF_C_PHASE, "REG_GRID_METER_R_POWER_FACTOR_OF_C_PHASE" },
-	{ REG_GRID_METER_R_TOTAL_POWER_FACTOR, "REG_GRID_METER_R_TOTAL_POWER_FACTOR" },
-	{ REG_PV_METER_RW_PV_METER_CT_ENABLE, "REG_PV_METER_RW_PV_METER_CT_ENABLE" },
-	{ REG_PV_METER_RW_PV_METER_CT_RATE, "REG_PV_METER_RW_PV_METER_CT_RATE" },
-	{ REG_PV_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, "REG_PV_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1" },
-	{ REG_PV_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, "REG_PV_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1" },
-	{ REG_PV_METER_R_VOLTAGE_OF_A_PHASE, "REG_PV_METER_R_VOLTAGE_OF_A_PHASE" },
-	{ REG_PV_METER_R_VOLTAGE_OF_B_PHASE, "REG_PV_METER_R_VOLTAGE_OF_B_PHASE" },
-	{ REG_PV_METER_R_VOLTAGE_OF_C_PHASE, "REG_PV_METER_R_VOLTAGE_OF_C_PHASE" },
-	{ REG_PV_METER_R_CURRENT_OF_A_PHASE, "REG_PV_METER_R_CURRENT_OF_A_PHASE" },
-	{ REG_PV_METER_R_CURRENT_OF_B_PHASE, "REG_PV_METER_R_CURRENT_OF_B_PHASE" },
-	{ REG_PV_METER_R_CURRENT_OF_C_PHASE, "REG_PV_METER_R_CURRENT_OF_C_PHASE" },
-	{ REG_PV_METER_R_FREQUENCY, "REG_PV_METER_R_FREQUENCY" },
-	{ REG_PV_METER_R_ACTIVE_POWER_OF_A_PHASE_1, "REG_PV_METER_R_ACTIVE_POWER_OF_A_PHASE_1" },
-	{ REG_PV_METER_R_ACTIVE_POWER_OF_B_PHASE_1, "REG_PV_METER_R_ACTIVE_POWER_OF_B_PHASE_1" },
-	{ REG_PV_METER_R_ACTIVE_POWER_OF_C_PHASE_1, "REG_PV_METER_R_ACTIVE_POWER_OF_C_PHASE_1" },
-	{ REG_PV_METER_R_TOTAL_ACTIVE_POWER_1, "REG_PV_METER_R_TOTAL_ACTIVE_POWER_1" },
-	{ REG_PV_METER_R_REACTIVE_POWER_OF_A_PHASE_1, "REG_PV_METER_R_REACTIVE_POWER_OF_A_PHASE_1" },
-	{ REG_PV_METER_R_REACTIVE_POWER_OF_B_PHASE_1, "REG_PV_METER_R_REACTIVE_POWER_OF_B_PHASE_1" },
-	{ REG_PV_METER_R_REACTIVE_POWER_OF_C_PHASE_1, "REG_PV_METER_R_REACTIVE_POWER_OF_C_PHASE_1" },
-	{ REG_PV_METER_R_TOTAL_REACTIVE_POWER_1, "REG_PV_METER_R_TOTAL_REACTIVE_POWER_1" },
-	{ REG_PV_METER_R_APPARENT_POWER_OF_A_PHASE_1, "REG_PV_METER_R_APPARENT_POWER_OF_A_PHASE_1" },
-	{ REG_PV_METER_R_APPARENT_POWER_OF_B_PHASE_1, "REG_PV_METER_R_APPARENT_POWER_OF_B_PHASE_1" },
-	{ REG_PV_METER_R_APPARENT_POWER_OF_C_PHASE_1, "REG_PV_METER_R_APPARENT_POWER_OF_C_PHASE_1" },
-	{ REG_PV_METER_R_TOTAL_APPARENT_POWER_1, "REG_PV_METER_R_TOTAL_APPARENT_POWER_1" },
-	{ REG_PV_METER_R_POWER_FACTOR_OF_A_PHASE, "REG_PV_METER_R_POWER_FACTOR_OF_A_PHASE" },
-	{ REG_PV_METER_R_POWER_FACTOR_OF_B_PHASE, "REG_PV_METER_R_POWER_FACTOR_OF_B_PHASE" },
-	{ REG_PV_METER_R_POWER_FACTOR_OF_C_PHASE, "REG_PV_METER_R_POWER_FACTOR_OF_C_PHASE" },
-	{ REG_PV_METER_R_TOTAL_POWER_FACTOR, "REG_PV_METER_R_TOTAL_POWER_FACTOR" },
-	{ REG_BATTERY_HOME_R_VOLTAGE, "REG_BATTERY_HOME_R_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_CURRENT, "REG_BATTERY_HOME_R_CURRENT" },
-	{ REG_BATTERY_HOME_R_SOC, "REG_BATTERY_HOME_R_SOC" },
-	{ REG_BATTERY_HOME_R_STATUS, "REG_BATTERY_HOME_R_STATUS" },
-	{ REG_BATTERY_HOME_R_RELAY_STATUS, "REG_BATTERY_HOME_R_RELAY_STATUS" },
-	{ REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_VOLTAGE, "REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_VOLTAGE, "REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_MIN_CELL_VOLTAGE, "REG_BATTERY_HOME_R_MIN_CELL_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_VOLTAGE, "REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_VOLTAGE, "REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_MAX_CELL_VOLTAGE, "REG_BATTERY_HOME_R_MAX_CELL_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_TEMPERATURE" },
-	{ REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_TEMPERATURE" },
-	{ REG_BATTERY_HOME_R_MIN_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_MIN_CELL_TEMPERATURE" },
-	{ REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_TEMPERATURE" },
-	{ REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_TEMPERATURE" },
-	{ REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE, "REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE" },
-	{ REG_BATTERY_HOME_R_MAX_CHARGE_CURRENT, "REG_BATTERY_HOME_R_MAX_CHARGE_CURRENT" },
-	{ REG_BATTERY_HOME_R_MAX_DISCHARGE_CURRENT, "REG_BATTERY_HOME_R_MAX_DISCHARGE_CURRENT" },
-	{ REG_BATTERY_HOME_R_CHARGE_CUT_OFF_VOLTAGE, "REG_BATTERY_HOME_R_CHARGE_CUT_OFF_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_DISCHARGE_CUT_OFF_VOLTAGE, "REG_BATTERY_HOME_R_DISCHARGE_CUT_OFF_VOLTAGE" },
-	{ REG_BATTERY_HOME_R_BMU_SOFTWARE_VERSION, "REG_BATTERY_HOME_R_BMU_SOFTWARE_VERSION" },
-	{ REG_BATTERY_HOME_R_LMU_SOFTWARE_VERSION, "REG_BATTERY_HOME_R_LMU_SOFTWARE_VERSION" },
-	{ REG_BATTERY_HOME_R_ISO_SOFTWARE_VERSION, "REG_BATTERY_HOME_R_ISO_SOFTWARE_VERSION" },
-	{ REG_BATTERY_HOME_R_BATTERY_NUMBER, "REG_BATTERY_HOME_R_BATTERY_NUMBER" },
-	{ REG_BATTERY_HOME_R_BATTERY_CAPACITY, "REG_BATTERY_HOME_R_BATTERY_CAPACITY" },
-	{ REG_BATTERY_HOME_R_BATTERY_TYPE, "REG_BATTERY_HOME_R_BATTERY_TYPE" },
-	{ REG_BATTERY_HOME_R_BATTERY_SOH, "REG_BATTERY_HOME_R_BATTERY_SOH" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1, "REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1, "REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_ENERGY_CHARGE_FROM_GRID_1, "REG_BATTERY_HOME_R_BATTERY_ENERGY_CHARGE_FROM_GRID_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_POWER, "REG_BATTERY_HOME_R_BATTERY_POWER" },
-	{ REG_BATTERY_HOME_R_BATTERY_REMAINING_TIME, "REG_BATTERY_HOME_R_BATTERY_REMAINING_TIME" },
-	{ REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_CHARGE_SOC, "REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_CHARGE_SOC" },
-	{ REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_DISCHARGE_SOC, "REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_DISCHARGE_SOC" },
-	{ REG_BATTERY_HOME_R_BATTERY_REMAINING_CHARGE_SOC, "REG_BATTERY_HOME_R_BATTERY_REMAINING_CHARGE_SOC" },
-	{ REG_BATTERY_HOME_R_BATTERY_REMAINING_DISCHARGE_SOC, "REG_BATTERY_HOME_R_BATTERY_REMAINING_DISCHARGE_SOC" },
-	{ REG_BATTERY_HOME_R_BATTERY_MAX_CHARGE_POWER, "REG_BATTERY_HOME_R_BATTERY_MAX_CHARGE_POWER" },
-	{ REG_BATTERY_HOME_R_BATTERY_MAX_DISCHARGE_POWER, "REG_BATTERY_HOME_R_BATTERY_MAX_DISCHARGE_POWER" },
-	{ REG_BATTERY_HOME_RW_BATTERY_MOS_CONTROL, "REG_BATTERY_HOME_RW_BATTERY_MOS_CONTROL" },
-	{ REG_BATTERY_HOME_R_BATTERY_SOC_CALIBRATION, "REG_BATTERY_HOME_R_BATTERY_SOC_CALIBRATION" },
-	{ REG_BATTERY_HOME_R_BATTERY_SINGLE_CUT_ERROR_CODE, "REG_BATTERY_HOME_R_BATTERY_SINGLE_CUT_ERROR_CODE" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_1_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_1_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_2_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_2_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_3_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_3_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_4_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_4_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_5_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_5_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_FAULT_6_1, "REG_BATTERY_HOME_R_BATTERY_FAULT_6_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_1_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_1_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_2_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_2_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_3_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_3_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_4_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_4_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_5_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_5_1" },
-	{ REG_BATTERY_HOME_R_BATTERY_WARNING_6_1, "REG_BATTERY_HOME_R_BATTERY_WARNING_6_1" },
-	{ REG_INVERTER_HOME_R_VOLTAGE_L1, "REG_INVERTER_HOME_R_VOLTAGE_L1" },
-	{ REG_INVERTER_HOME_R_VOLTAGE_L2, "REG_INVERTER_HOME_R_VOLTAGE_L2" },
-	{ REG_INVERTER_HOME_R_VOLTAGE_L3, "REG_INVERTER_HOME_R_VOLTAGE_L3" },
-	{ REG_INVERTER_HOME_R_CURRENT_L1, "REG_INVERTER_HOME_R_CURRENT_L1" },
-	{ REG_INVERTER_HOME_R_CURRENT_L2, "REG_INVERTER_HOME_R_CURRENT_L2" },
-	{ REG_INVERTER_HOME_R_CURRENT_L3, "REG_INVERTER_HOME_R_CURRENT_L3" },
-	{ REG_INVERTER_HOME_R_POWER_L1_1, "REG_INVERTER_HOME_R_POWER_L1_1" },
-	{ REG_INVERTER_HOME_R_POWER_L2_1, "REG_INVERTER_HOME_R_POWER_L2_1" },
-	{ REG_INVERTER_HOME_R_POWER_L3_1, "REG_INVERTER_HOME_R_POWER_L3_1" },
-	{ REG_INVERTER_HOME_R_POWER_TOTAL_1, "REG_INVERTER_HOME_R_POWER_TOTAL_1" },
-	{ REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L1, "REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L1" },
-	{ REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L2, "REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L2" },
-	{ REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L3, "REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L3" },
-	{ REG_INVERTER_HOME_R_BACKUP_CURRENT_L1, "REG_INVERTER_HOME_R_BACKUP_CURRENT_L1" },
-	{ REG_INVERTER_HOME_R_BACKUP_CURRENT_L2, "REG_INVERTER_HOME_R_BACKUP_CURRENT_L2" },
-	{ REG_INVERTER_HOME_R_BACKUP_CURRENT_L3, "REG_INVERTER_HOME_R_BACKUP_CURRENT_L3" },
-	{ REG_INVERTER_HOME_R_BACKUP_POWER_L1_1, "REG_INVERTER_HOME_R_BACKUP_POWER_L1_1" },
-	{ REG_INVERTER_HOME_R_BACKUP_POWER_L2_1, "REG_INVERTER_HOME_R_BACKUP_POWER_L2_1" },
-	{ REG_INVERTER_HOME_R_BACKUP_POWER_L3_1, "REG_INVERTER_HOME_R_BACKUP_POWER_L3_1" },
-	{ REG_INVERTER_HOME_R_BACKUP_POWER_TOTAL_1, "REG_INVERTER_HOME_R_BACKUP_POWER_TOTAL_1" },
-	{ REG_INVERTER_HOME_R_FREQUENCY, "REG_INVERTER_HOME_R_FREQUENCY" },
-	{ REG_INVERTER_HOME_R_PV1_VOLTAGE, "REG_INVERTER_HOME_R_PV1_VOLTAGE" },
-	{ REG_INVERTER_HOME_R_PV1_CURRENT, "REG_INVERTER_HOME_R_PV1_CURRENT" },
-	{ REG_INVERTER_HOME_R_PV1_POWER_1, "REG_INVERTER_HOME_R_PV1_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV2_VOLTAGE, "REG_INVERTER_HOME_R_PV2_VOLTAGE" },
-	{ REG_INVERTER_HOME_R_PV2_CURRENT, "REG_INVERTER_HOME_R_PV2_CURRENT" },
-	{ REG_INVERTER_HOME_R_PV2_POWER_1, "REG_INVERTER_HOME_R_PV2_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV3_VOLTAGE, "REG_INVERTER_HOME_R_PV3_VOLTAGE" },
-	{ REG_INVERTER_HOME_R_PV3_CURRENT, "REG_INVERTER_HOME_R_PV3_CURRENT" },
-	{ REG_INVERTER_HOME_R_PV3_POWER_1, "REG_INVERTER_HOME_R_PV3_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV4_VOLTAGE, "REG_INVERTER_HOME_R_PV4_VOLTAGE" },
-	{ REG_INVERTER_HOME_R_PV4_CURRENT, "REG_INVERTER_HOME_R_PV4_CURRENT" },
-	{ REG_INVERTER_HOME_R_PV4_POWER_1, "REG_INVERTER_HOME_R_PV4_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV5_VOLTAGE, "REG_INVERTER_HOME_R_PV5_VOLTAGE" },
-	{ REG_INVERTER_HOME_R_PV5_CURRENT, "REG_INVERTER_HOME_R_PV5_CURRENT" },
-	{ REG_INVERTER_HOME_R_PV5_POWER_1, "REG_INVERTER_HOME_R_PV5_POWER_1" },
-	{ REG_INVERTER_HOME_R_PV6_VOLTAGE, "REG_INVERTER_HOME_R_PV6_VOLTAGE" },
-	{ REG_INVERTER_HOME_R_PV6_CURRENT, "REG_INVERTER_HOME_R_PV6_CURRENT" },
-	{ REG_INVERTER_HOME_R_PV6_POWER_1, "REG_INVERTER_HOME_R_PV6_POWER_1" },
-	{ REG_INVERTER_HOME_R_INVERTER_TEMP, "REG_INVERTER_HOME_R_INVERTER_TEMP" },
-	{ REG_INVERTER_HOME_R_INVERTER_WARNING_1_1, "REG_INVERTER_HOME_R_INVERTER_WARNING_1_1" },
-	{ REG_INVERTER_HOME_R_INVERTER_WARNING_2_1, "REG_INVERTER_HOME_R_INVERTER_WARNING_2_1" },
-	{ REG_INVERTER_HOME_R_INVERTER_FAULT_1_1, "REG_INVERTER_HOME_R_INVERTER_FAULT_1_1" },
-	{ REG_INVERTER_HOME_R_INVERTER_FAULT_2_1, "REG_INVERTER_HOME_R_INVERTER_FAULT_2_1" },
-	{ REG_INVERTER_HOME_R_INVERTER_TOTAL_PV_ENERGY_1, "REG_INVERTER_HOME_R_INVERTER_TOTAL_PV_ENERGY_1" },
-	{ REG_INVERTER_HOME_R_WORKING_MODE, "REG_INVERTER_HOME_R_WORKING_MODE" },
-	{ REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1, "REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1" },
-	{ REG_INVERTER_INFO_R_SLAVE_SOFTWARE_VERSION_1, "REG_INVERTER_INFO_R_SLAVE_SOFTWARE_VERSION_1" },
-	{ REG_INVERTER_INFO_R_SERIAL_NUMBER_1, "REG_INVERTER_INFO_R_SERIAL_NUMBER_1" },
-	{ REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH, "REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH" },
-	{ REG_SYSTEM_INFO_RW_SYSTEM_TIME_DAY_HOUR, "REG_SYSTEM_INFO_RW_SYSTEM_TIME_DAY_HOUR" },
-	{ REG_SYSTEM_INFO_RW_SYSTEM_TIME_MINUTE_SECOND, "REG_SYSTEM_INFO_RW_SYSTEM_TIME_MINUTE_SECOND" },
-	{ REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2, "REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2" },
-	{ REG_SYSTEM_INFO_R_EMS_VERSION_HIGH, "REG_SYSTEM_INFO_R_EMS_VERSION_HIGH" },
-	{ REG_SYSTEM_INFO_R_EMS_VERSION_MIDDLE, "REG_SYSTEM_INFO_R_EMS_VERSION_MIDDLE" },
-	{ REG_SYSTEM_INFO_R_EMS_VERSION_LOW, "REG_SYSTEM_INFO_R_EMS_VERSION_LOW" },
-	{ REG_SYSTEM_INFO_R_PROTOCOL_VERSION, "REG_SYSTEM_INFO_R_PROTOCOL_VERSION" },
-	{ REG_SYSTEM_CONFIG_RW_MAX_FEED_INTO_GRID_PERCENT, "REG_SYSTEM_CONFIG_RW_MAX_FEED_INTO_GRID_PERCENT" },
-	{ REG_SYSTEM_CONFIG_RW_PV_CAPACITY_STORAGE_1, "REG_SYSTEM_CONFIG_RW_PV_CAPACITY_STORAGE_1" },
-	{ REG_SYSTEM_CONFIG_RW_PV_CAPACITY_OF_GRID_INVERTER_1, "REG_SYSTEM_CONFIG_RW_PV_CAPACITY_OF_GRID_INVERTER_1" },
-	{ REG_SYSTEM_CONFIG_RW_SYSTEM_MODE, "REG_SYSTEM_CONFIG_RW_SYSTEM_MODE" },
-	{ REG_SYSTEM_CONFIG_RW_METER_CT_SELECT, "REG_SYSTEM_CONFIG_RW_METER_CT_SELECT" },
-	{ REG_SYSTEM_CONFIG_RW_BATTERY_READY, "REG_SYSTEM_CONFIG_RW_BATTERY_READY" },
-	{ REG_SYSTEM_CONFIG_RW_IP_METHOD, "REG_SYSTEM_CONFIG_RW_IP_METHOD" },
-	{ REG_SYSTEM_CONFIG_RW_LOCAL_IP_1, "REG_SYSTEM_CONFIG_RW_LOCAL_IP_1" },
-	{ REG_SYSTEM_CONFIG_RW_SUBNET_MASK_1, "REG_SYSTEM_CONFIG_RW_SUBNET_MASK_1" },
-	{ REG_SYSTEM_CONFIG_RW_GATEWAY_1, "REG_SYSTEM_CONFIG_RW_GATEWAY_1" },
-	{ REG_SYSTEM_CONFIG_RW_MODBUS_ADDRESS, "REG_SYSTEM_CONFIG_RW_MODBUS_ADDRESS" },
-	{ REG_SYSTEM_CONFIG_RW_MODBUS_BAUD_RATE, "REG_SYSTEM_CONFIG_RW_MODBUS_BAUD_RATE" },
-	{ REG_TIMING_RW_TIME_PERIOD_CONTROL_FLAG, "REG_TIMING_RW_TIME_PERIOD_CONTROL_FLAG" },
-	{ REG_TIMING_RW_UPS_RESERVE_SOC, "REG_TIMING_RW_UPS_RESERVE_SOC" },
-	{ REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1, "REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1" },
-	{ REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1, "REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1" },
-	{ REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2, "REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2" },
-	{ REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2, "REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2" },
-	{ REG_TIMING_RW_CHARGE_CUT_SOC, "REG_TIMING_RW_CHARGE_CUT_SOC" },
-	{ REG_TIMING_RW_TIME_CHARGE_START_TIME_1, "REG_TIMING_RW_TIME_CHARGE_START_TIME_1" },
-	{ REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1, "REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1" },
-	{ REG_TIMING_RW_TIME_CHARGE_START_TIME_2, "REG_TIMING_RW_TIME_CHARGE_START_TIME_2" },
-	{ REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2, "REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2" },
-	{ REG_DISPATCH_RW_DISPATCH_START, "REG_DISPATCH_RW_DISPATCH_START" },
-	{ REG_DISPATCH_RW_ACTIVE_POWER_1, "REG_DISPATCH_RW_ACTIVE_POWER_1" },
-	{ REG_DISPATCH_RW_REACTIVE_POWER_1, "REG_DISPATCH_RW_REACTIVE_POWER_1" },
-	{ REG_DISPATCH_RW_DISPATCH_MODE, "REG_DISPATCH_RW_DISPATCH_MODE" },
-	{ REG_DISPATCH_RW_DISPATCH_SOC, "REG_DISPATCH_RW_DISPATCH_SOC" },
-	{ REG_DISPATCH_RW_DISPATCH_TIME_1, "REG_DISPATCH_RW_DISPATCH_TIME_1" },
-	{ REG_AUXILIARY_R_EMS_DI0, "REG_AUXILIARY_R_EMS_DI0" },
-	{ REG_AUXILIARY_R_EMS_DI1, "REG_AUXILIARY_R_EMS_DI1" },
-	{ REG_SYSTEM_OP_R_PV_INVERTER_ENERGY_1, "REG_SYSTEM_OP_R_PV_INVERTER_ENERGY_1" },
-	{ REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, "REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1" },
-	{ REG_SYSTEM_OP_R_SYSTEM_FAULT_1, "REG_SYSTEM_OP_R_SYSTEM_FAULT_1" },
-	{ REG_SAFETY_TEST_RW_GRID_REGULATION, "REG_SAFETY_TEST_RW_GRID_REGULATION" },
-	{ REG_CUSTOM_LOAD, "REG_CUSTOM_LOAD" },
-	{ REG_CUSTOM_SYSTEM_DATE_TIME, "REG_CUSTOM_SYSTEM_DATE_TIME" },
-	{ REG_CUSTOM_GRID_CURRENT_A_PHASE, "REG_CUSTOM_GRID_CURRENT_A_PHASE" }
-};
 
 
 
@@ -383,6 +126,9 @@ static struct mqttState _mqttAllHandledRegisters[] PROGMEM =
 #define STATUS_INTERVAL_ONE_DAY 86400000
 #define UPDATE_STATUS_BAR_INTERVAL 500
 
+#ifdef LARGE_DISPLAY
+Adafruit_SSD1306 _display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 0);
+#else // LARGE_DISPLAY
 // Wemos OLED Shield set up. 64x48
 // Pins D1 D2 if ESP8266
 // Pins GPIO22 and GPIO21 (SCL/SDA) with optional reset on GPIO13 if ESP32
@@ -391,200 +137,194 @@ Adafruit_SSD1306 _display(0);
 #else
 Adafruit_SSD1306 _display(-1); // No RESET Pin
 #endif
-
-
+#endif // LARGE_DISPLAY
 
 /*
-setup
-
-The setup function runs once when you press reset or power the board
-*/
+ * setup
+ *
+ * The setup function runs once when you press reset or power the board
+ */
 void setup()
 {
+    // All for testing different baud rates to 'wake up' the inverter
+    unsigned long knownBaudRates[7] = { 9600, 115200, 19200, 57600, 38400, 14400, 4800 };
+    bool gotResponse = false;
+    modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+    modbusRequestAndResponse response;
+    char baudRateString[10] = "";
+    int baudRateIterator = -1;
+    bool firstCheck = true;
 
-	// All for testing different baud rates to 'wake up' the inverter
-	unsigned long knownBaudRates[7] = { 9600, 115200, 19200, 57600, 38400, 14400, 4800 };
-	bool gotResponse = false;
-	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
-	modbusRequestAndResponse response;
-	char baudRateString[10] = "";
-	int baudRateIterator = -1;
-	bool firstCheck = true;
+    // Set up serial for debugging using an appropriate baud rate
+    // This is for communication with the development environment, NOT the Alpha system
+    // See Definitions.h for this.
+    Serial.begin(9600);
 
-
-
-	// Set up serial for debugging using an appropriate baud rate
-	// This is for communication with the development environment, NOT the Alpha system
-	// See Definitions.h for this.
-	Serial.begin(9600);
-
-
-	// Configure LED for output
-	pinMode(LED_BUILTIN, OUTPUT);
+    // Configure LED for output
+    pinMode(LED_BUILTIN, OUTPUT);
 	
-	// Wire.setClock(10000);
+    // Wire.setClock(10000);
 
-	// Display time
-	_display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize OLED with the I2C addr 0x3C (for the 64x48)
-	_display.clearDisplay();
-	_display.display();
-	updateOLED(false, "", "", _version);
+    // Display time
+    _display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize OLED with the I2C addr 0x3C (for the 64x48)
+    _display.clearDisplay();
+    _display.display();
+    updateOLED(false, "", "", _version);
 
+    // Bit of a delay to give things time to kick in
+    delay(500);
 
-
-	// Bit of a delay to give things time to kick in
-	delay(100);
-
-
-	// Configure WIFI
-	setupWifi();
-
-	// Configure MQTT to the address and port specified above
-	_mqtt.setServer(MQTT_SERVER, MQTT_PORT);
 #ifdef DEBUG
-	sprintf(_debugOutput, "About to request buffer");
+    sprintf(_debugOutput, "Starting.");
+    Serial.println(_debugOutput);
+#endif
+
+    // Configure WIFI
+    setupWifi(true);
+
+    // Configure MQTT to the address and port specified above
+    _mqtt.setServer(MQTT_SERVER, MQTT_PORT);
+#ifdef DEBUG
+    sprintf(_debugOutput, "About to request buffer");
+    Serial.println(_debugOutput);
+#endif
+    for (int _bufferSize = (MAX_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE); _bufferSize >= MIN_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE; _bufferSize = _bufferSize - 1024) {
+#ifdef DEBUG
+	sprintf(_debugOutput, "Requesting a buffer of : %d bytes", _bufferSize);
 	Serial.println(_debugOutput);
 #endif
-	for (_bufferSize = (MAX_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE); _bufferSize >= MIN_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE; _bufferSize = _bufferSize - 1024)
-	{
-#ifdef DEBUG
-		sprintf(_debugOutput, "Requesting a buffer of : %d bytes", _bufferSize);
-		Serial.println(_debugOutput);
-#endif
 
-		if (_mqtt.setBufferSize(_bufferSize))
-		{
+	if (_mqtt.setBufferSize(_bufferSize)) {
 			
-			_maxPayloadSize = _bufferSize - MQTT_HEADER_SIZE;
+	    _maxPayloadSize = _bufferSize - MQTT_HEADER_SIZE;
 #ifdef DEBUG
-			sprintf(_debugOutput, "_bufferSize: %d,\r\n\r\n_maxPayload (Including null terminator): %d", _bufferSize, _maxPayloadSize);
-			Serial.println(_debugOutput);
+	    sprintf(_debugOutput, "_bufferSize: %d,\r\n\r\n_maxPayload (Including null terminator): %d", _bufferSize, _maxPayloadSize);
+	    Serial.println(_debugOutput);
 #endif
 			
-			// Example, 2048, if declared as 2048 is positions 0 to 2047, and position 2047 needs to be zero.  2047 usable chars in payload.
-			_mqttPayload = new char[_maxPayloadSize];
-			emptyPayload();
+	    // Example, 2048, if declared as 2048 is positions 0 to 2047, and position 2047 needs to be zero.  2047 usable chars in payload.
+	    _mqttPayload = new char[_maxPayloadSize];
+	    emptyPayload();
 
-			break;
-		}
-		else
-		{
+	    break;
+	} else {
 #ifdef DEBUG
-			sprintf(_debugOutput, "Coudln't allocate buffer of %d bytes", _bufferSize);
-			Serial.println(_debugOutput);
+	    sprintf(_debugOutput, "Coudln't allocate buffer of %d bytes", _bufferSize);
+	    Serial.println(_debugOutput);
 #endif
-		}
 	}
-	
+    }
 
-	// And any messages we are subscribed to will be pushed to the mqttCallback function for processing
-	_mqtt.setCallback(mqttCallback);
+    // And any messages we are subscribed to will be pushed to the mqttCallback function for processing
+    _mqtt.setCallback(mqttCallback);
 
+    // Set up the serial for communicating with the MAX
+    _modBus = new RS485Handler;
+    _modBus->setDebugOutput(_debugOutput);
 
+    // Set up the helper class for reading with reading registers
+    _registerHandler = new RegisterHandler(_modBus);
 
+    // Iterate known baud rates until we find a success
+    while (!gotResponse) {
+	// Starts at -1, so increment to 0 for example
+	baudRateIterator++;
 
-	// Set up the serial for communicating with the MAX
-	_modBus = new RS485Handler;
-	_modBus->setDebugOutput(_debugOutput);
-
-	// Set up the helper class for reading with reading registers
-	_registerHandler = new RegisterHandler(_modBus);
-
-	// Iterate known baud rates until we find a success
-	while (!gotResponse)
-	{
-		// Starts at -1, so increment to 0 for example
-		baudRateIterator++;
-
-		// Go back to zero if beyond the bounds
-		if (baudRateIterator > (sizeof(knownBaudRates) / sizeof(knownBaudRates[0])) - 1)
-		{
-			baudRateIterator = 0;
-		}
-
-		// Update the display
-		sprintf(baudRateString, "%u", knownBaudRates[baudRateIterator]);
-
-		updateOLED(false, "Test Baud", baudRateString, "");
-#ifdef DEBUG
-		sprintf(_debugOutput, "About To Try: %u", knownBaudRates[baudRateIterator]);
-		Serial.println(_debugOutput);
-#endif
-		// Set the rate
-		_modBus->setBaudRate(knownBaudRates[baudRateIterator]);
-
-		// Ask for a reading
-		result = _registerHandler->readHandledRegister(REG_SAFETY_TEST_RW_GRID_REGULATION, &response);
-		if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-		{
-#ifdef DEBUG
-			sprintf(_debugOutput, "Baud Rate Checker Problem: %s", response.statusMqttMessage);
-			Serial.println(_debugOutput);
-#endif
-			updateOLED(false, "Test Baud", baudRateString, response.displayMessage);
-
-			// Delay a while before trying the next
-			delay(1000);
-		}
-		else
-		{
-			// Excellent, baud rate is set in the class, we got a response.. get out of here
-			gotResponse = true;
-		}
+	// Go back to zero if beyond the bounds
+	if (baudRateIterator > (sizeof(knownBaudRates) / sizeof(knownBaudRates[0])) - 1) {
+	    baudRateIterator = 0;
 	}
 
-	// Get the serial number (especially prefix for error codes)
-	getSerialNumber();
+	// Update the display
+	sprintf(baudRateString, "%u", knownBaudRates[baudRateIterator]);
 
-	// Connect to MQTT
-	mqttReconnect();
+	updateOLED(false, "Test Baud", baudRateString, "");
+#ifdef DEBUG
+	sprintf(_debugOutput, "About To Try: %u", knownBaudRates[baudRateIterator]);
+	Serial.println(_debugOutput);
+#endif
+	// Set the rate
+	_modBus->setBaudRate(knownBaudRates[baudRateIterator]);
 
-	updateOLED(false, "", "", _version);
+	// Ask for a reading
+#ifdef DEBUG_NO_RS485
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_SAFETY_TEST_RW_GRID_REGULATION, &response);
+#endif // DEBUG_NO_RS485
+	if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+#ifdef DEBUG
+	    sprintf(_debugOutput, "Baud Rate Checker Problem: %s", response.statusMqttMessage);
+	    Serial.println(_debugOutput);
+#endif
+	    updateOLED(false, "Test Baud", baudRateString, response.displayMessage);
+
+	    // Delay a while before trying the next
+	    delay(1000);
+	} else {
+	    // Excellent, baud rate is set in the class, we got a response.. get out of here
+	    gotResponse = true;
+	}
+    }
+
+    // Get the serial number (especially prefix for error codes)
+    getSerialNumber();
+
+    // Connect to MQTT
+    mqttReconnect();
+    sendHaData();
+    resendHaData = true;  // Tell loop() to do it again
+    sendData();
+    resendAllData = true; // Tell sendData() to send everything again
+
+    updateOLED(false, "", "", _version);
 }
 
 
 
 
 /*
-loop
-
-The loop function runs overand over again until power down or reset
-*/
-void loop()
+ * loop
+ *
+ * The loop function runs overand over again until power down or reset
+ */
+void
+loop()
 {
-	static unsigned long autoReboot = 0;
+    static unsigned long autoReboot = 0;
 
-	// Refresh LED Screen, will cause the status asterisk to flicker
-	updateOLED(true, "", "", "");
+    // Refresh LED Screen, will cause the status asterisk to flicker
+    updateOLED(true, "", "", "");
 
-	// Make sure WiFi is good
-	if (WiFi.status() != WL_CONNECTED)
-	{
-		setupWifi();
-	}
+    // Make sure WiFi is good
+    if (!WIFI_CONNECTED || WiFi.status() != WL_CONNECTED) {
+	setupWifi(false);
+	mqttReconnect();
+    }
 
-	// make sure mqtt is still connected
-	if ((!_mqtt.connected()) || !_mqtt.loop())
-	{
-		mqttReconnect();
-	}
+    // make sure mqtt is still connected
+    if ((!_mqtt.connected()) || !_mqtt.loop()) {
+	mqttReconnect();
+	resendHaData = true;
+    }
 
-	// Check and display the runstate on the display
-	updateRunstate();
+    // Check and display the runstate on the display
+    updateRunstate();
 
-	// Read and transmit all configured data to MQTT
-	sendData();
+    // Send HA auto-discovery info
+    if (resendHaData == true) {
+	sendHaData();
+    }
 
+    // Read and transmit all configured data to MQTT
+    sendData();
 	
-	// Force Restart?
+    // Force Restart?
 #ifdef FORCE_RESTART
-	if (checkTimer(&autoReboot, FORCE_RESTART_HOURS * 60 * 60 * 1000))
-	{
-		ESP.restart();
-	}
+    if (checkTimer(&autoReboot, FORCE_RESTART_HOURS * 60 * 60 * 1000)) {
+	ESP.restart();
+    }
 #endif
-
-
 }
 
 
@@ -596,40 +336,75 @@ setupWifi
 
 Connect to WiFi
 */
-void setupWifi()
+void
+setupWifi(bool initialConnect)
 {
-	// We start by connecting to a WiFi network
+    char line3[OLED_CHARACTER_WIDTH];
+    char line4[OLED_CHARACTER_WIDTH];
+
+    // We start by connecting to a WiFi network
 #ifdef DEBUG
+    if (initialConnect) {
 	sprintf(_debugOutput, "Connecting to %s", WIFI_SSID);
-	Serial.println(_debugOutput);
+    } else {
+	sprintf(_debugOutput, "Reconnect to %s", WIFI_SSID);
+	wifiReconnects++;
+    }
+    Serial.println(_debugOutput);
 #endif
 
-	// Set up in Station Mode - Will be connecting to an access point
-	WiFi.mode(WIFI_STA);
+    if (!initialConnect) {
+	WiFi.disconnect();
+    }
 
-	// Set the hostname for this Arduino
-	WiFi.hostname(DEVICE_NAME);
+#if defined MP_ESP8266
+    // Set up in Station Mode - Will be connecting to an access point
+    WiFi.mode(WIFI_STA);
 
-	// And connect to the details defined at the top
-	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    // Set the hostname for this Arduino
+    WiFi.hostname(DEVICE_NAME);
+#endif
 
-	// And continually try to connect to WiFi.  If it doesn't, the device will just wait here before continuing
-	while (WiFi.status() != WL_CONNECTED)
-	{
-		delay(250);
-		updateOLED(false, "Connecting", "WiFi...", _version);
+    // And connect to the details defined at the top
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    delay(250);
+
+    // And continually try to connect to WiFi.
+    // If it doesn't, the device will just wait here before continuing
+    for (int tries = 1; !WIFI_CONNECTED || WiFi.status() != WL_CONNECTED; tries++) {
+	snprintf(line3, sizeof(line3), "WiFi %d ...", tries);
+
+#if defined MP_ESP8266
+	if (tries % 25 == 0) {
+	    wifiPower -= .25;
+	    if (wifiPower < WIFI_MIN_POWER) {
+		wifiPower = WIFI_MAX_POWER;
+	    }
+	    WiFi.setOutputPower(wifiPower);
 	}
-
-	// Output some debug information
-#ifdef DEBUG
-	Serial.print("WiFi connected, IP is ");
-	Serial.println(WiFi.localIP());
+	snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
+#else
+	strcpy(line4, "");
 #endif
 
-	// Connected, so ditch out with blank screen
-	updateOLED(false, "", "", _version);
-}
+	if (initialConnect) {
+	    updateOLED(false, "Connecting", line3, line4);
+	} else {
+	    updateOLED(false, "Reconnect", line3, line4);
+	}
+	delay(500);
+    }
 
+    // Output some debug information
+#ifdef DEBUG
+    Serial.print("WiFi connected, IP is ");
+    Serial.println(WiFi.localIP());
+#endif
+
+    // Connected, so ditch out with blank screen
+    snprintf(line3, sizeof(line3), "%s", WiFi.localIP().toString());
+    updateOLED(false, line3, "", _version);
+}
 
 
 
@@ -640,21 +415,26 @@ Check to see if the elapsed interval has passed since the passed in millis() val
 Note that millis() overflows after 50 days, so we need to deal with that too... in our case we just zero the last run, which means the timer
 could be shorter but it's not critical... not worth the extra effort of doing it properly for once in 50 days.
 */
-bool checkTimer(unsigned long *lastRun, unsigned long interval)
+bool
+checkTimer(unsigned long *lastRun, unsigned long interval)
 {
-	unsigned long now = millis();
+    unsigned long now = millis();
 
-	if (*lastRun > now)
-		*lastRun = 0;
+    if (*lastRun > now)
+	*lastRun = 0;
 
-	if (now >= *lastRun + interval)
-	{
-		*lastRun = now;
-		return true;
-	}
+    if (*lastRun == 0 || now >= *lastRun + interval) {
+	*lastRun = now;
+	return true;
+    }
 
-	return false;
+    return false;
 }
+
+#define CURSOR_LINE_1 0
+#define CURSOR_LINE_2 ((SCREEN_HEIGHT / 4) * 1)
+#define CURSOR_LINE_3 ((SCREEN_HEIGHT / 4) * 2)
+#define CURSOR_LINE_4 ((SCREEN_HEIGHT / 4) * 3)
 
 /*
 updateOLED
@@ -662,77 +442,66 @@ updateOLED
 Update the OLED. Use "NULL" for no change to a line or "" for an empty line.
 Three parameters representing each of the three lines available for status indication - Top line functionality fixed
 */
-void updateOLED(bool justStatus, const char* line2, const char* line3, const char* line4)
+void
+updateOLED(bool justStatus, const char* line2, const char* line3, const char* line4)
 {
-	static unsigned long updateStatusBar = 0;
+    static unsigned long updateStatusBar = 0;
 
+    _display.clearDisplay();
+    _display.setTextSize(1);
+    _display.setTextColor(WHITE);
+    _display.setCursor(0, CURSOR_LINE_1);
 
-	_display.clearDisplay();
-	_display.setTextSize(1);
-	_display.setTextColor(WHITE);
-	_display.setCursor(0, 0);
+    char line1Contents[OLED_CHARACTER_WIDTH];
+    char line2Contents[OLED_CHARACTER_WIDTH];
+    char line3Contents[OLED_CHARACTER_WIDTH];
+    char line4Contents[OLED_CHARACTER_WIDTH];
 
-	char line1Contents[OLED_CHARACTER_WIDTH];
-	char line2Contents[OLED_CHARACTER_WIDTH];
-	char line3Contents[OLED_CHARACTER_WIDTH];
-	char line4Contents[OLED_CHARACTER_WIDTH];
+    strlcpy(line2Contents, line2, sizeof(line2Contents));
+    strlcpy(line3Contents, line3, sizeof(line3Contents));
+    strlcpy(line4Contents, line4, sizeof(line4Contents));
 
-	strlcpy(line2Contents, line2, sizeof(line2Contents));
-	strlcpy(line3Contents, line3, sizeof(line3Contents));
-	strlcpy(line4Contents, line4, sizeof(line4Contents));
+    // Only update the operating indicator once per half second.
+    if (checkTimer(&updateStatusBar, UPDATE_STATUS_BAR_INTERVAL)) {
+	// Simply swap between space and asterisk every time we come here to give some indication of activity
+	_oledOperatingIndicator = (_oledOperatingIndicator == '*') ? ' ' : '*';
+    }
 
-	// Only update the operating indicator once per half second.
-	if (checkTimer(&updateStatusBar, UPDATE_STATUS_BAR_INTERVAL))
-	{
-		// Simply swap between space and asterisk every time we come here to give some indication of activity
-		_oledOperatingIndicator = (_oledOperatingIndicator == '*') ? ' ' : '*';
-	}
+#ifdef LARGE_DISPLAY
+    // There's 20 characters we can play with, width wise.
+    sprintf(line1Contents, "A2M   %c%c%c  RSSI: %d", _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), WiFi.RSSI() );
+#else // LARGE_DISPLAY
+    // There's ten characters we can play with, width wise.
+    sprintf(line1Contents, "%s%c%c%c", "A2M    ", _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
+#endif // LARGE_DISPLAY
+    _display.println(line1Contents);
 
-	// There's ten characters we can play with, width wise.
-	sprintf(line1Contents, "%s%c%c%c", "A2M    ", _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
-	_display.println(line1Contents);
+    // Next line
+    _display.setCursor(0, CURSOR_LINE_2);
+    if (!justStatus) {
+	_display.println(line2Contents);
+	strcpy(_oledLine2, line2Contents);
+    } else {
+	_display.println(_oledLine2);
+    }
 
+    _display.setCursor(0, CURSOR_LINE_3);
+    if (!justStatus) {
+	_display.println(line3Contents);
+	strcpy(_oledLine3, line3Contents);
+    } else {
+	_display.println(_oledLine3);
+    }
 
-
-
-	// Next line
-
-	_display.setCursor(0, 12);
-	if (!justStatus)
-	{
-		_display.println(line2Contents);
-		strcpy(_oledLine2, line2Contents);
-	}
-	else
-	{
-		_display.println(_oledLine2);
-	}
-
-
-
-	_display.setCursor(0, 24);
-	if (!justStatus)
-	{
-		_display.println(line3Contents);
-		strcpy(_oledLine3, line3Contents);
-	}
-	else
-	{
-		_display.println(_oledLine3);
-	}
-
-	_display.setCursor(0, 36);
-	if (!justStatus)
-	{
-		_display.println(line4Contents);
-		strcpy(_oledLine4, line4Contents);
-	}
-	else
-	{
-		_display.println(_oledLine4);
-	}
-	// Refresh the display
-	_display.display();
+    _display.setCursor(0, CURSOR_LINE_4);
+    if (!justStatus) {
+	_display.println(line4Contents);
+	strcpy(_oledLine4, line4Contents);
+    } else {
+	_display.println(_oledLine4);
+    }
+    // Refresh the display
+    _display.display();
 }
 
 
@@ -743,360 +512,1056 @@ void updateOLED(bool justStatus, const char* line2, const char* line3, const cha
 
 
 /*
-getSerialNumber
-
-Display on load to demonstrate connectivty and send the prefix into RegisterHandler as
-some system fault descriptions depend on knowing whether an AL based or AE based inverter.
-*/
-modbusRequestAndResponseStatusValues getSerialNumber()
+ *getSerialNumber
+ *
+ * Display on load to demonstrate connectivty and send the prefix into RegisterHandler as
+ * some system fault descriptions depend on knowing whether an AL based or AE based inverter.
+ */
+modbusRequestAndResponseStatusValues
+getSerialNumber()
 {
-	static unsigned long lastRun = 0;
-	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
-	modbusRequestAndResponse response;
+    modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+    modbusRequestAndResponse response;
+    uint32_t tries = 0;
+    char oledLine3[OLED_CHARACTER_WIDTH];
+    char oledLine4[OLED_CHARACTER_WIDTH];
 
-	char oledLine3[OLED_CHARACTER_WIDTH];
-	char oledLine4[OLED_CHARACTER_WIDTH];
+#ifdef DEBUG_NO_RS485
+    result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+    strcpy(response.dataValueFormatted, "AL9876543210987");
+#else // DEBUG_NO_RS485
+    // Get the serial number
+    result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2, &response);
 
-	// Get the serial number
+    // Loop forever until we get this!
+    while ((result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) ||
+	   (strlen(response.dataValueFormatted) < 15)) {
+	tries++;
+	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
+	updateOLED(false, "Alpha sys", "not known", oledLine4);
+	delay(1000);
 	result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2, &response);
+    }
+#endif // DEBUG_NO_RS485
+    strlcpy(deviceSerialNumber, response.dataValueFormatted, 16);
 
+#ifdef DEBUG_NO_RS485
+    result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+    strcpy(response.dataValueFormatted, "FAKE-BAT");
+#else // DEBUG_NO_RS485
+    // Get the Battery Type
+    result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_TYPE, &response);
+    // Loop forever until we get this!
+    while (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	tries++;
+	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
+	updateOLED(false, "Bat type", "not known", oledLine4);
+	delay(1000);
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_TYPE, &response);
+    }
+#endif // DEBUG_NO_RS485
+    strlcpy(deviceBatteryType, response.dataValueFormatted, sizeof(deviceBatteryType));
 
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-	{
-		// strncpy doesn't null terminate.
-		strncpy(oledLine3, &response.dataValueFormatted[0], 10);
-		oledLine3[10] = 0;
-		strncpy(oledLine4, &response.dataValueFormatted[10], 5);
-		oledLine4[5] = 0;
-		updateOLED(false, "Hello", oledLine3, oledLine4);
+#ifdef LARGE_DISPLAY
+    strlcpy(oledLine3, deviceSerialNumber, sizeof(oledLine3));
+    strlcpy(oledLine4, deviceBatteryType, sizeof(oledLine4));
+#else //LARGE_DISPLAY
+    strlcpy(oledLine3, &response.dataValueFormatted[0], 11);
+    strlcpy(oledLine4, &response.dataValueFormatted[10], 6);
+#endif //LARGE_DISPLAY
+    updateOLED(false, "Hello", oledLine3, oledLine4);
+
 #ifdef DEBUG
-		sprintf(_debugOutput, "Alpha Serial Number: %s", response.dataValueFormatted);
-		Serial.println(_debugOutput);
+    sprintf(_debugOutput, "Alpha Serial Number: %s", deviceSerialNumber);
+    Serial.println(_debugOutput);
 #endif
 
-		_registerHandler->setSerialNumberPrefix(response.dataValueFormatted[0], response.dataValueFormatted[1]);
-	}
-	else
-	{
-		updateOLED(false, "Alpha sys", "not known", "");
-	}
+    _registerHandler->setSerialNumberPrefix(deviceSerialNumber[0], deviceSerialNumber[1]);
+    snprintf(haUniqueId, sizeof(haUniqueId), "A2M-%s", deviceSerialNumber);
+    snprintf(statusTopic, sizeof(statusTopic), DEVICE_NAME "/%s/status", haUniqueId);
 
-	delay(4000);
+    delay(4000);
 
+    //Flash the LED
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(4);
+    digitalWrite(LED_BUILTIN, HIGH);
+
+    return result;
+}
+
+
+/*
+ * updateRunstate
+ *
+ * Determines a few things about the sytem and updates the display
+ * Things updated - Dispatch state discharge/charge, battery power, battery percent
+ */
+#ifdef LARGE_DISPLAY
+void
+updateRunstate()
+{
+    static unsigned long lastRun = 0;
+    static uint32_t loopCnt = 0;
+    modbusRequestAndResponse response;
+    modbusRequestAndResponseStatusValues request;
+    char *dMode = NULL, *dAction = NULL;
+
+    char line2[OLED_CHARACTER_WIDTH] = "";
+    char line3[OLED_CHARACTER_WIDTH] = "";
+    char line4[OLED_CHARACTER_WIDTH] = "";
+
+
+    if (checkTimer(&lastRun, RUNSTATE_INTERVAL)) {
 	//Flash the LED
 	digitalWrite(LED_BUILTIN, LOW);
 	delay(4);
 	digitalWrite(LED_BUILTIN, HIGH);
 
-	return result;
+#ifdef DEBUG_NO_RS485
+	strcpy(line2, "DAVE  :  DAVE");
+	strcpy(line3, dispatchModeDesc);
+	request = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	// Line 2: Get Dispatch Start - Is Alpha2MQTT controlling the inverter?
+	request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
+	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    strcpy(line2, "DS Err");
+	} else {
+	    if (response.unsignedShortValue != DISPATCH_START_START) {
+		strcpy(line2, "Stopped");
+	    } else {
+		// Get the mode.
+		request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
+		if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		    strcpy(line2, "Mode Err");
+		} else {
+		    switch (response.unsignedShortValue) {
+		    case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
+			dMode = "PV Only";
+			break;
+		    case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
+			dMode = "SOC Ctl";
+			break;
+		    case DISPATCH_MODE_LOAD_FOLLOWING:
+			dMode = "LoadFollow";
+			break;
+		    case DISPATCH_MODE_MAXIMISE_OUTPUT:
+			dMode = "MaxOut";
+			break;
+		    case DISPATCH_MODE_NORMAL_MODE:
+			dMode = "Normal";
+			break;
+		    case DISPATCH_MODE_OPTIMISE_CONSUMPTION:
+			dMode = "OptConsmpt";
+			break;
+		    case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
+			dMode = "MaxConsmpt";
+			break;
+		    case DISPATCH_MODE_ECO_MODE:
+			dMode = "ECO";
+			break;
+		    case DISPATCH_MODE_FCAS_MODE:
+			dMode = "FCAS";
+			break;
+		    case DISPATCH_MODE_PV_POWER_SETTING:
+			dMode = "PV Pwr";
+			break;
+		    default:
+			dMode = "BadMode";
+			break;
+		    }
+
+		    // Determine if charging or discharging by looking at power
+		    request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
+		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			strcpy(line2, "AP Err");
+		    } else {
+			if (response.signedIntValue < 32000) {
+			    dAction = "Charge";
+			} else if (response.signedIntValue > 32000) {
+			    dAction = "Discharge";
+			} else {
+			    dAction = "Hold";
+			}
+			snprintf(line2, sizeof(line2), "%s : %s", dMode, dAction);
+		    }
+		}
+	    }
+	}
+
+	// Get battery info for line 3
+	request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, &response);
+	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    strcpy(line3, "Bat Err");
+	} else {
+	    int batPower = response.signedShortValue;
+
+	    request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
+	    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		strcpy(line3, "SOC Err");
+	    } else {
+		snprintf(line3, sizeof(line3), "Bat: %4dW  %0.02f%%", batPower, response.unsignedShortValue * 0.1);
+	    }
+	}
+#endif // DEBUG_NO_RS485
+
+	switch (loopCnt % 5) {
+	case 0:
+	    snprintf(line4, sizeof(line4), "Mem: %u", freeMemory());
+	    break;
+	case 1:
+	    snprintf(line4, sizeof(line4), "WiFi recon: %d", wifiReconnects);
+	    break;
+	case 2:
+	    snprintf(line4, sizeof(line4), "Callbacks: %u", receivedCallbacks);
+	    break;
+	case 3:
+	    snprintf(line4, sizeof(line4), "Unk CBs: %u", unknownCallbacks);
+	    break;
+	case 4:
+	    snprintf(line4, sizeof(line4), "Bad CBs: %u", badCallbacks);
+	    break;
+	default:
+	    snprintf(line4, sizeof(line4), "Code Error");
+	    break;
+	}
+	loopCnt++;
+
+	if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    updateOLED(false, line2, line3, line4);
+	} else {
+#ifdef DEBUG
+	    Serial.println(response.statusMqttMessage);
+#endif
+	    // Use line3 (line 3) for errors
+	    updateOLED(false, "", line3, response.displayMessage);
+	}
+    }
 }
-
-
-/*
-updateRunstate
-
-Determines a few things about the sytem and updates the display
-Things updated - Dispatch state discharge/charge, battery power, battery percent
-*/
+#else // LARGE_DISPLAY
 void updateRunstate()
 {
 	
-	static unsigned long lastRun = 0;
-	static int lastLine2 = 0;
-	modbusRequestAndResponse response;
-	modbusRequestAndResponseStatusValues request;
+    static unsigned long lastRun = 0;
+    static int lastLine2 = 0;
+    modbusRequestAndResponse response;
+    modbusRequestAndResponseStatusValues request;
 
-	char runningMode[OLED_CHARACTER_WIDTH] = "Other";
-	char batteryPower[OLED_CHARACTER_WIDTH] = "";
-	char batterySOC[OLED_CHARACTER_WIDTH] = "";
-
-
-
-	if (checkTimer(&lastRun, RUNSTATE_INTERVAL))
-	{
-		//Flash the LED
-		digitalWrite(LED_BUILTIN, LOW);
-		delay(4);
-		digitalWrite(LED_BUILTIN, HIGH);
+    char line2[OLED_CHARACTER_WIDTH] = "";
+    char line3[OLED_CHARACTER_WIDTH] = "";
+    char line4[OLED_CHARACTER_WIDTH] = "";
 
 
-		// Get Dispatch Start - Is Alpha2MQTT controlling the inverter?
-		request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
-		if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-		{
-			strcpy(runningMode, "DS Err");
-		}
-		else
-		{
-			if (response.unsignedShortValue != DISPATCH_START_START)
-			{
-				strcpy(runningMode, "Stopped");
+    if (checkTimer(&lastRun, RUNSTATE_INTERVAL)) {
+	//Flash the LED
+	digitalWrite(LED_BUILTIN, LOW);
+	delay(4);
+	digitalWrite(LED_BUILTIN, HIGH);
+
+	// Get Dispatch Start - Is Alpha2MQTT controlling the inverter?
+	request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
+	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    // Use line3 (line 3) for errors
+	    strcpy(line3, "DS Err");
+	} else {
+	    if (response.unsignedShortValue != DISPATCH_START_START) {
+		strcpy(line2, "Stopped");
+	    } else {
+		if (lastLine2 == 0) {
+		    lastLine2 = 1;
+		    // Get the mode.
+		    request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
+		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			// Use line3 (line 3) for errors
+			strcpy(line3, "Mode Err");
+		    } else {
+			switch (response.unsignedShortValue) {
+			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
+			    strcpy(line2, "PV Only");
+			    break;
+			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
+			    strcpy(line2, "SOC Ctl");
+			    break;
+			case DISPATCH_MODE_LOAD_FOLLOWING:
+			    strcpy(line2, "LoadFollow");
+			    break;
+			case DISPATCH_MODE_MAXIMISE_OUTPUT:
+			    strcpy(line2, "MaxOut");
+			    break;
+			case DISPATCH_MODE_NORMAL_MODE:
+			    strcpy(line2, "Normal");
+			    break;
+			case DISPATCH_MODE_OPTIMISE_CONSUMPTION:
+			    strcpy(line2, "OptConsmpt");
+			    break;
+			case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
+			    strcpy(line2, "MaxConsmpt");
+			    break;
+			case DISPATCH_MODE_ECO_MODE:
+			    strcpy(line2, "ECO");
+			    break;
+			case DISPATCH_MODE_FCAS_MODE:
+			    strcpy(line2, "FCAS");
+			    break;
+			case DISPATCH_MODE_PV_POWER_SETTING:
+			    strcpy(line2, "PV Pwr");
+			    break;
+			default:
+			    strcpy(line2, "BadMode");
+			    break;
 			}
-			else
-			{
-				if (lastLine2 == 0)
-				{
-					lastLine2 = 1;
-					// Get the mode.
-					request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
-					if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-					{
-						strcpy(runningMode, "Mode Err");
-					}
-					else
-					{
-						switch (response.unsignedShortValue)
-						{
-						case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
-							strcpy(runningMode, "PV Only");
-							break;
-						case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
-							strcpy(runningMode, "SOC Ctl");
-							break;
-						case DISPATCH_MODE_LOAD_FOLLOWING:
-							strcpy(runningMode, "LoadFollow");
-							break;
-						case DISPATCH_MODE_MAXIMISE_OUTPUT:
-							strcpy(runningMode, "MaxOut");
-							break;
-						case DISPATCH_MODE_NORMAL_MODE:
-							strcpy(runningMode, "Normal");
-							break;
-						case DISPATCH_MODE_OPTIMISE_CONSUMPTION:
-							strcpy(runningMode, "OptConsmpt");
-							break;
-						case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
-							strcpy(runningMode, "MaxConsmpt");
-							break;
-						case DISPATCH_MODE_ECO_MODE:
-							strcpy(runningMode, "ECO");
-							break;
-						case DISPATCH_MODE_FCAS_MODE:
-							strcpy(runningMode, "FCAS");
-							break;
-						case DISPATCH_MODE_PV_POWER_SETTING:
-							strcpy(runningMode, "PV Pwr");
-							break;
-						default:
-							strcpy(runningMode, "BadMode");
-							break;
-						}
-					}
-				}
-				else
-				{
-					lastLine2 = 0;
-					// Determine if charging or discharging by looking at power
-					request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
-					if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-					{
-						strcpy(runningMode, "AP Err");
-					}
-					else
-					{
-						if (response.signedIntValue < 32000)
-						{
-							strcpy(runningMode, "Charge");
-						}
-						else if (response.signedIntValue > 32000)
-						{
-							strcpy(runningMode, "Discharge");
-						}
-						else
-						{
-							strcpy(runningMode, "Hold");
-						}
-					}
-				}
+		    }
+		} else {
+		    lastLine2 = 0;
+		    // Determine if charging or discharging by looking at power
+		    request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
+		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			// Use line3 (line 3) for errors
+			strcpy(line3, "AP Err");
+		    } else {
+			if (response.signedIntValue < 32000) {
+			    strcpy(line2, "Charge");
+			} else if (response.signedIntValue > 32000) {
+			    strcpy(line2, "Discharge");
+			} else {
+			    strcpy(line2, "Hold");
 			}
+		    }
 		}
-
-		// Get battery power for line 3
-		if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-		{
-			request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, &response);
-			if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-			{
-				sprintf(batteryPower, "Bat:%dW", response.signedShortValue);
-			}
-		}
-
-		// And percent for line 4
-		if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-		{
-			request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
-			if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-			{
-				sprintf(batterySOC, "%0.02f%%", response.unsignedShortValue * 0.1);
-			}
-		}
-
-		if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-		{
-			updateOLED(false, runningMode, batteryPower, batterySOC);
-		}
-		else
-		{
-#ifdef DEBUG
-			Serial.println(response.statusMqttMessage);
-#endif
-			updateOLED(false, "", "", response.displayMessage);
-		}
+	    }
 	}
-}
 
+	if (lastLine2 == 1) {
+	    // Get battery power for line 3
+	    if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, &response);
+		if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		    snprintf(line3, sizeof(line3), "Bat:%dW", response.signedShortValue);
+		} else {
+		    // Use line3 (line 3) for errors
+		    strcpy(line3, "Bat Err");
+		}
+	    }
+
+	    // And percent for line 4
+	    if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
+		if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		    snprintf(line4, sizeof(line4), "%0.02f%%", response.unsignedShortValue * 0.1);
+		} else {
+		    // Use line3 (line 3) for errors
+		    strcpy(line3, "SOC Err");
+		}
+	    }
+	} else {
+	    snprintf(line3, sizeof(line3), "Mem: %u", freeMemory());
+#if defined MP_ESP8266
+	    snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
+#else
+	    strcpy(line4, "");
+#endif
+	}
+
+	if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    updateOLED(false, line2, line3, line4);
+	} else {
+#ifdef DEBUG
+	    Serial.println(response.statusMqttMessage);
+#endif
+	    // Use line3 (line 3) for errors
+	    updateOLED(false, "", line3, response.displayMessage);
+	}
+    }
+}
+#endif // LARGE_DISPLAY
 
 
 
 /*
-mqttReconnect
-
-This function reconnects the ESP8266 to the MQTT broker
-*/
+ * mqttReconnect
+ *
+ *This function reconnects the ESP8266 to the MQTT broker
+ */
 void mqttReconnect()
 {
-	bool subscribed = false;
-	char subscriptionDef[100];
-	char line3[32];
-	int tries = 0;
+    bool subscribed = false;
+    char subscriptionDef[100];
+    char line3[OLED_CHARACTER_WIDTH];
+    char line4[OLED_CHARACTER_WIDTH];
+    int tries = 0;
 
-	// Loop until we're reconnected
-	while (true)
-	{
+    // Loop until we're reconnected
+    while (true) {
 
-		_mqtt.disconnect();		// Just in case.
-		tries++;
-		delay(200);
-
-#ifdef DEBUG
-		Serial.print("Attempting MQTT connection...");
+	_mqtt.disconnect();		// Just in case.
+#if defined MP_ESP8266
+	_wifi.abort();			// Just in case.
+#else
+	_wifi.stop();			// Just in case.
 #endif
+	tries++;
+	delay(200);
 
-		snprintf(line3, sizeof(line3), "MQTT %d ...", tries);
-		updateOLED(false, "Connecting", line3, _version);
-		delay(100);
-
-		// Attempt to connect
-		if (_mqtt.connect(DEVICE_NAME, MQTT_USERNAME, MQTT_PASSWORD))
-		{
-			Serial.println("Connected MQTT");
-
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_READ_HANDLED_REGISTER);
-// DAVE
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_READ_RAW_REGISTER);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_SET_CHARGE);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_SET_DISCHARGE);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_SET_NORMAL);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_WRITE_RAW_SINGLE_REGISTER);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_WRITE_RAW_DATA_REGISTER);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-			sprintf(subscriptionDef, "%s", DEVICE_NAME MQTT_SUB_REQUEST_READ_HANDLED_REGISTER_ALL);
-			_mqtt.unsubscribe(subscriptionDef);
-			subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
-
-			// Subscribe or resubscribe to topics.
-			if (subscribed)
-			{
-				// Connected, so ditch out with runstate on the screen
-				updateRunstate();
-				break;
-			}
-			
-		}
-
-#ifdef DEBUG
-		sprintf(_debugOutput, "MQTT Failed: RC is %d\r\nTrying again in five seconds...", _mqtt.state());
-		Serial.println(_debugOutput);
-#endif
-
-		// Wait 5 seconds before retrying
-		delay(5000);
+	if (!WIFI_CONNECTED || WiFi.status() != WL_CONNECTED) {
+	    setupWifi(false);
 	}
+
+#ifdef DEBUG
+	Serial.print("Attempting MQTT connection...");
+#endif
+
+	snprintf(line3, sizeof(line3), "MQTT %d ...", tries);
+	snprintf(line4, sizeof(line4), "RSSI %d", WiFi.RSSI());
+	updateOLED(false, "Connecting", line3, _version);
+	delay(100);
+
+	// Attempt to connect
+#ifdef DEBUG_NO_RS485
+	if (_mqtt.connect(DEVICE_NAME"-test", MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
+#else // DEBUG_NO_RS485
+	    if (_mqtt.connect(DEVICE_NAME, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
+#endif // DEBUG_NO_RS485
+	    int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
+#ifdef DEBUG
+	    Serial.println("Connected MQTT");
+#endif
+
+	    // Special case for Home Assistant
+	    sprintf(subscriptionDef, "%s", MQTT_SUB_HOMEASSISTANT);
+	    subscribed = _mqtt.subscribe(subscriptionDef);
+#ifdef DEBUG
+	    sprintf(_debugOutput, "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
+	    Serial.println(_debugOutput);
+#endif
+
+	    for (int i = 0; i < numberOfEntities; i++) {
+		if (_mqttAllEntities[i].subscribe) {
+		    sprintf(subscriptionDef, DEVICE_NAME "/%s/%s/command", haUniqueId, _mqttAllEntities[i].mqttName);
+		    subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
+#ifdef DEBUG
+		    sprintf(_debugOutput, "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
+		    Serial.println(_debugOutput);
+#endif
+		}
+	    }
+
+	    // Subscribe or resubscribe to topics.
+	    if (subscribed) {
+		// Connected, so ditch out with runstate on the screen
+		updateRunstate();
+		break;
+	    }
+	}
+
+#ifdef DEBUG
+	sprintf(_debugOutput, "MQTT Failed: RC is %d\r\nTrying again in five seconds...", _mqtt.state());
+	Serial.println(_debugOutput);
+#endif
+
+	// Wait 5 seconds before retrying
+	delay(5000);
+    }
 }
 
+mqttState *
+lookupSubscription(char *entityName)
+{
+    int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
+    for (int i = 0; i < numberOfEntities; i++) {
+	if (_mqttAllEntities[i].subscribe &&
+	    !strcmp(entityName, _mqttAllEntities[i].mqttName)) {
+	    return &_mqttAllEntities[i];
+	}
+    }
+    return NULL;
+}
 
+mqttState *
+lookupEntity(mqttEntityId entityId)
+{
+    int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
+    for (int i = 0; i < numberOfEntities; i++) {
+	if (_mqttAllEntities[i].entityId == entityId) {
+	    return &_mqttAllEntities[i];
+	}
+    }
+    return NULL;
+}
 
+modbusRequestAndResponseStatusValues
+dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
+{
+    modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+
+    switch (singleEntity->entityId) {
+    case mqttEntityId::entityRegValue:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::signedInt;
+	rs->signedIntValue = regNumberToRead;  // Just return the register #
+	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	if (regNumberToRead < 0) {
+	    rs->returnDataType = modbusReturnDataType::character;
+	    strcpy(rs->characterValue, "Nothing read");
+	    sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
+	    result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	} else {
+	    result = _registerHandler->readHandledRegister(regNumberToRead, rs);
+	    if (result == modbusRequestAndResponseStatusValues::notHandledRegister) {
+		rs->returnDataType = modbusReturnDataType::character;
+		strcpy(rs->characterValue, "Invalid register");
+		sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	    } else if ((result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) &&
+		       !strcmp(rs->dataValueFormatted, "Unknown")) {
+		switch (rs->returnDataType) {
+		case modbusReturnDataType::character:
+		    sprintf(rs->dataValueFormatted, "Unknown (%s)", rs->characterValue);
+		    break;
+		case modbusReturnDataType::signedInt:
+		case modbusReturnDataType::signedShort:
+		    sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedIntValue);
+		    break;
+		case modbusReturnDataType::unsignedInt:
+		case modbusReturnDataType::unsignedShort:
+		    sprintf(rs->dataValueFormatted, "Unknown (%u)", rs->unsignedShortValue);
+		    break;
+		}
+	    }
+	}
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityRegNum:
+	rs->returnDataType = modbusReturnDataType::signedInt;
+	rs->signedIntValue = regNumberToRead;
+	sprintf(rs->dataValueFormatted, "%d", regNumberToRead);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+    case mqttEntityId::entityGridReg:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedShort;
+	rs->unsignedShortValue = GRID_REGULATION_AL_17;
+	sprintf(rs->dataValueFormatted, "%s", GRID_REGULATION_AL_17_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_SAFETY_TEST_RW_GRID_REGULATION, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityInverterTemp:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedShort;
+	rs->unsignedShortValue = 2750;
+	sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * INVERTER_TEMP_MULTIPLIER);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_TEMP, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityBatCap:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedShort;
+	rs->unsignedShortValue = 2345;
+	sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * INVERTER_TEMP_MULTIPLIER);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_CAPACITY, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityMaxCellTemp:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::signedShort;
+	rs->signedShortValue = 2750;
+	sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * INVERTER_TEMP_MULTIPLIER);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityDispatchMode:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedShort;
+	rs->unsignedShortValue = dispatchMode;
+	strcpy(rs->dataValueFormatted, dispatchModeDesc);
+//	strcpy(rs->dataValueFormatted, "LoadFollow");
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+// DAVE - handle errors from _registerHandler
+	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, rs);
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    if (rs->unsignedShortValue == DISPATCH_START_START) {
+		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, rs);
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		    daveErrorCode = rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
+		} else {
+		    daveErrorCode = 900000 + rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
+		}
+	    } else {
+		daveErrorCode = 800000 + rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
+	    }
+	} else {
+	    daveErrorCode = 700000 + rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
+	}
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityPvEnergy:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = 3399;
+	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityPvPwr:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::signedInt;
+	rs->signedIntValue = 3388;
+	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_CUSTOM_TOTAL_SOLAR_POWER, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityGridEnergyTo:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = 4499;
+	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityGridEnergyFrom:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = 4488;
+	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityGridPwr:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::signedInt;
+	rs->signedIntValue = 1221;
+	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityBatEnergyCharge:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = 5599;
+	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityBatEnergyDischarge:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = 5588;
+	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityBatPwr:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::signedShort;
+	rs->signedIntValue = -2255;
+	sprintf(rs->dataValueFormatted, "%d", rs->signedShortValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityBatSoc:
+#ifdef DEBUG_NO_RS485
+	rs->returnDataType = modbusReturnDataType::unsignedShort;
+	rs->unsignedShortValue = 1000; // x 10
+	sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, rs);
+#endif // DEBUG_NO_RS485
+	break;
+    case mqttEntityId::entityCallbacks:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = receivedCallbacks;
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+    case mqttEntityId::entityErrors:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = daveErrorCode;
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+#ifdef DEBUG_FREEMEM
+    case mqttEntityId::entityFreemem:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = freeMemory();
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+#endif
+    case mqttEntityId::entityVersion:
+	rs->returnDataType = modbusReturnDataType::character;
+	strcpy(rs->characterValue, _version);
+	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_CHARACTER_DESC);
+	sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+    case mqttEntityId::entityRSSI:
+	rs->returnDataType = modbusReturnDataType::signedInt;
+	rs->signedIntValue = WiFi.RSSI();
+	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_SIGNED_INT_DESC);
+	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+    case mqttEntityId::entityUnknown:
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::notValidIncomingTopic;
+	break;
+    }
+    return result;
+}
+
+modbusRequestAndResponseStatusValues
+dave_writeRegisterInt(mqttState *singleEntity, int32_t val, modbusRequestAndResponse* rs)
+{
+    modbusRequestAndResponseStatusValues result;
+    switch (singleEntity->entityId) {
+    case mqttEntityId::entityErrors:
+	unknownCallbacks = val;
+	break;
+    default:
+	result = modbusRequestAndResponseStatusValues::notValidIncomingTopic;
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC);
+	return result;
+    }
+    result = dave_readRegister(singleEntity, rs);
+    if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	result = modbusRequestAndResponseStatusValues::writeDataRegisterSuccess;
+    }
+    strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_WRITE_DATA_REGISTER_SUCCESS_MQTT_DESC);
+    return result;
+}
 
 
 /*
-addStateInfo
-
-Query the handled register in the usual way, and add the cleansed output to the buffer
-*/
-modbusRequestAndResponseStatusValues addStateInfo(uint16_t registerAddress, char* registerName, bool addComma, modbusRequestAndResponseStatusValues& resultAddedToPayload)
+ * addState
+ *
+ * Query the handled entity in the usual way, and add the cleansed output to the buffer
+ */
+modbusRequestAndResponseStatusValues
+addState(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultAddedToPayload)
 {
-	unsigned int val;
-	char stateAddition[128] = ""; // 128 should cover individual additions to the payload
-	char addQuote = false;
-	modbusRequestAndResponse response;
-	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+    modbusRequestAndResponse response;
+    modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
 
-	// Read the register
-	result = _registerHandler->readHandledRegister(registerAddress, &response);
+    // Read the register
+    result = dave_readRegister(singleEntity, &response);
 
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)
-	{
-		// Add a quote if the return data type is character or has been converted from lookup to description.
-		addQuote = (response.returnDataType == modbusReturnDataType::character || response.hasLookup);
-
-		sprintf(stateAddition, "    \"%s\": %s%s%s%s\r\n", registerName, addQuote ? "\"" : "", response.dataValueFormatted, addQuote ? "\"" : "", addComma ? "," : "");
-
-		/*
-		ABC,
-		1234 LEN
-		0123
-		*/
-
-		// Let the onward process also know if the buffer failed.
-		resultAddedToPayload = addToPayload(stateAddition);
-	}
-	else
-	{
+    if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+//	addQuote = (response.returnDataType == modbusReturnDataType::character || response.hasLookup);
+//	sprintf(stateAddition, "%s%s%s", addQuote ? "\"" : "", response.dataValueFormatted, addQuote ? "\"" : "");
+	// Let the onward process also know if the buffer failed.
+	resultAddedToPayload = addToPayload(response.dataValueFormatted);
+    } else {
 #ifdef DEBUG
-		sprintf(_debugOutput, "Failed to addStateInfo for: %u, Result was: %d", registerAddress, result);
-		Serial.println(_debugOutput);
+	sprintf(_debugOutput, "Failed to read register for: %s, Result was: %d", singleEntity->mqttName, result);
+	Serial.println(_debugOutput);
 #endif
-	}
-	return result;
+    }
+    return result;
 }
 
-
-
-
-modbusRequestAndResponseStatusValues addToPayload(char* addition)
+void
+sendStatus(void)
 {
-	int targetRequestedSize = strlen(_mqttPayload) + strlen(addition);
+    char stateAddition[64] = "";
+    modbusRequestAndResponseStatusValues resultAddedToPayload;
 
-	// If max payload size is 2048 it is stored as (0-2047), however character 2048  (position 2047) is null terminator so 2047 chars usable usable
-	if (targetRequestedSize > _maxPayloadSize - 1)
-	{
-		// Safely print using snprintf
-		snprintf(_mqttPayload, _maxPayloadSize, "{\r\n    \"mqttError\": \"Length of payload exceeds %d bytes.  Length would be %d bytes.\"\r\n}", _maxPayloadSize - 1, targetRequestedSize);
+    emptyPayload();
 
-		return modbusRequestAndResponseStatusValues::payloadExceededCapacity;
-	}
-	else
-	{
-		// Add to the payload by sprintf back on itself with the addition
-		sprintf(_mqttPayload, "%s%s", _mqttPayload, addition);
+    snprintf(stateAddition, sizeof(stateAddition), "online");
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return;
+    }
 
-		return modbusRequestAndResponseStatusValues::addedToPayload;
-	}
+    sendMqtt(statusTopic);
 }
 
+modbusRequestAndResponseStatusValues
+addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultAddedToPayload)
+{
+    char stateAddition[1024] = "";
+    char prettyName[64];
+
+    sprintf(stateAddition, "{");
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+    strcpy(stateAddition, "");
+    switch (singleEntity->haClass) {
+    case homeAssistantClass::homeAssistantClassBox:
+	sprintf(stateAddition, "\"component\": \"number\", ");
+	break;
+    case homeAssistantClass::homeAssistantClassSelect:
+	sprintf(stateAddition, "\"component\": \"select\", ");
+	break;
+    default:
+	sprintf(stateAddition, "\"component\": \"sensor\", ");
+	break;
+    }
+    if (strlen(stateAddition) != 0) {
+	resultAddedToPayload = addToPayload(stateAddition);
+	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	    return resultAddedToPayload;
+	}
+    }
+
+    strcpy(stateAddition, "\"device\": {");
+    sprintf(stateAddition, "%s \"name\": \"%s\", \"model\": \"%s\", \"manufacturer\": \"AlphaESS\"",
+	    stateAddition, haUniqueId, deviceBatteryType);
+    sprintf(stateAddition, "%s, \"identifiers\": [\"%s\"]", stateAddition, haUniqueId);
+//    sprintf(stateAddition, "%s, \"connections\": [[\"" DEVICE_NAME " ID\", \"%s\"]]", stateAddition, haUniqueId);
+    sprintf(stateAddition, "%s}", stateAddition);
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+    strlcpy(prettyName, singleEntity->mqttName, sizeof(prettyName));
+    while(char *ch = strchr(prettyName, '_')) {
+	*ch = ' ';
+    }
+    sprintf(stateAddition, ", \"name\": \"%s\"", prettyName);
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+    sprintf(stateAddition, ", \"unique_id\": \"%s_%s\"", haUniqueId, singleEntity->mqttName);
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+    strcpy(stateAddition, "");
+    switch (singleEntity->haClass) {
+    case homeAssistantClass::homeAssistantClassEnergy:
+	sprintf(stateAddition, "%s, \"device_class\": \"energy\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"total_increasing\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"kWh\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassPower:
+	sprintf(stateAddition, "%s, \"device_class\": \"power\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"W\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassBattery:
+	sprintf(stateAddition, "%s, \"device_class\": \"battery\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"%%\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassVoltage:
+	sprintf(stateAddition, "%s, \"device_class\": \"voltage\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"V\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassCurrent:
+	sprintf(stateAddition, "%s, \"device_class\": \"current\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"A\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassTemp:
+	sprintf(stateAddition, "%s, \"device_class\": \"temperature\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"°C\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassBox:
+    case homeAssistantClass::homeAssistantClassInfo:
+	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	break;
+    case homeAssistantClass::homeAssistantClassSelect:
+	sprintf(stateAddition, "%s, \"device_class\": \"enum\"", stateAddition);
+	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	break;
+    }
+    if (strlen(stateAddition) != 0) {
+	resultAddedToPayload = addToPayload(stateAddition);
+	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	    return resultAddedToPayload;
+	}
+    }
+
+    strcpy(stateAddition, "");
+    switch (singleEntity->entityId) {
+    case mqttEntityId::entityRegNum:
+	sprintf(stateAddition, ", \"icon\": \"mdi:pound\"");
+	sprintf(stateAddition, "%s, \"min\": -1, \"max\": 41000, \"mode\": \"box\"", stateAddition);
+	break;
+    case mqttEntityId::entityRegValue:
+	sprintf(stateAddition, ", \"icon\": \"mdi:folder-pound-outline\"");
+	break;
+    case mqttEntityId::entityGridReg:
+	sprintf(stateAddition, ", \"icon\": \"mdi:security\"");
+	break;
+    case mqttEntityId::entityPvPwr:
+	sprintf(stateAddition, ", \"icon\": \"mdi:solar-power\"");
+	break;
+    case mqttEntityId::entityPvEnergy:
+	sprintf(stateAddition, ", \"icon\": \"mdi:solar-power-variant-outline\"");
+	break;
+    case mqttEntityId::entityGridPwr:
+	sprintf(stateAddition, ", \"icon\": \"mdi:transmission-tower\"");
+	break;
+    case mqttEntityId::entityGridEnergyTo:
+	sprintf(stateAddition, ", \"icon\": \"mdi:transmission-tower-export\"");
+	break;
+    case mqttEntityId::entityGridEnergyFrom:
+	sprintf(stateAddition, ", \"icon\": \"mdi:transmission-tower-import\"");
+	break;
+    case mqttEntityId::entityBatPwr:
+	sprintf(stateAddition, ", \"icon\": \"mdi:battery-charging-100\"");
+	break;
+    case mqttEntityId::entityBatEnergyCharge:
+	sprintf(stateAddition, ", \"icon\": \"mdi:battery-plus\"");
+	break;
+    case mqttEntityId::entityBatEnergyDischarge:
+	sprintf(stateAddition, ", \"icon\": \"mdi:battery-minus\"");
+	break;
+    case mqttEntityId::entityBatCap:
+	sprintf(stateAddition, "%s, \"device_class\": \"energy\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"total_increasing\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"kWh\"", stateAddition);
+	sprintf(stateAddition, "%s, \"icon\": \"mdi:home-battery\"", stateAddition);
+	break;
+    case mqttEntityId::entityDispatchMode:
+	sprintf(stateAddition, ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]",
+		DISPATCH_START_STOP_DESC, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC, DISPATCH_MODE_ECO_MODE_DESC,
+		DISPATCH_MODE_FCAS_MODE_DESC, DISPATCH_MODE_LOAD_FOLLOWING_DESC, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC, DISPATCH_MODE_NORMAL_MODE_DESC,
+		DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC, DISPATCH_MODE_PV_POWER_SETTING_DESC, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
+	break;
+    case mqttEntityId::entityRSSI:
+	sprintf(stateAddition, ", \"icon\": \"mdi:wifi\"");
+	break;
+    case mqttEntityId::entityVersion:
+	sprintf(stateAddition, ", \"icon\": \"mdi:numeric\"");
+	break;
+#ifdef DEBUG_FREEMEM
+    case mqttEntityId::entityFreemem:
+	sprintf(stateAddition, ", \"icon\": \"mdi:memory\"");
+	break;
+#endif
+    default:
+	break;
+    }
+    if (strlen(stateAddition) != 0) {
+	resultAddedToPayload = addToPayload(stateAddition);
+	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	    return resultAddedToPayload;
+	}
+    }
+
+    sprintf(stateAddition, ", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
+	    haUniqueId, singleEntity->mqttName);
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+    if (singleEntity->subscribe) {
+	sprintf(stateAddition, ", \"command_topic\": \"" DEVICE_NAME "/%s/%s/command\"",
+		haUniqueId, singleEntity->mqttName);
+	resultAddedToPayload = addToPayload(stateAddition);
+	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	    return resultAddedToPayload;
+	}
+    }
+
+    sprintf(stateAddition, ", \"availability_topic\": \"" DEVICE_NAME "/%s/status\"", haUniqueId);
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+// DAVE - make json_attributes bwe optional
+#if 0
+    sprintf(stateAddition, ", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/attributes\"",
+	    haUniqueId, singleEntity->mqttName);
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+#endif
+
+    sprintf(stateAddition, "}");
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
+    }
+
+    return modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+}
+
+
+modbusRequestAndResponseStatusValues
+addToPayload(const char* addition)
+{
+    int targetRequestedSize = strlen(_mqttPayload) + strlen(addition);
+
+    // If max payload size is 2048 it is stored as (0-2047), however character 2048  (position 2047) is null terminator so 2047 chars usable usable
+    if (targetRequestedSize > _maxPayloadSize - 1) {
+	// Safely print using snprintf
+	snprintf(_mqttPayload, _maxPayloadSize, "{\r\n    \"mqttError\": \"Length of payload exceeds %d bytes.  Length would be %d bytes.\"\r\n}",
+		 _maxPayloadSize - 1, targetRequestedSize);
+	return modbusRequestAndResponseStatusValues::payloadExceededCapacity;
+    } else {
+	// Add to the payload by sprintf back on itself with the addition
+	sprintf(_mqttPayload, "%s%s", _mqttPayload, addition);
+	return modbusRequestAndResponseStatusValues::addedToPayload;
+    }
+}
+
+
+void
+sendHaData()
+{
+    int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
+
+    for (int i = 0; i < numberOfEntities; i++) {
+	sendDataFromMqttState(&_mqttAllEntities[i], true);
+    }
+    resendHaData = false;
+}
 
 /*
 sendData
@@ -1104,96 +1569,105 @@ sendData
 Runs once every loop, checks to see if time periods have elapsed to allow the schedules to run.
 Each time, the appropriate arrays are iterated, processed and added to the payload.
 */
-void sendData()
+void
+sendData()
 {
-	static unsigned long lastRunTenSeconds = 0;
-	static unsigned long lastRunOneMinute = 0;
-	static unsigned long lastRunFiveMinutes = 0;
-	static unsigned long lastRunOneHour = 0;
-	static unsigned long lastRunOneDay = 0;
-	int numberOfRegisters;
-	// Update all parameters and send to MQTT.
-	if (checkTimer(&lastRunTenSeconds, STATUS_INTERVAL_TEN_SECONDS))
-	{
-		numberOfRegisters = sizeof(_mqttTenSecondStatusRegisters) / sizeof(struct mqttState);
-		sendDataFromAppropriateArray(_mqttTenSecondStatusRegisters, numberOfRegisters, DEVICE_NAME MQTT_MES_STATE_SECOND_TEN);
-	}
+    static unsigned long lastRunTenSeconds = 0;
+    static unsigned long lastRunOneMinute = 0;
+    static unsigned long lastRunFiveMinutes = 0;
+    static unsigned long lastRunOneHour = 0;
+    static unsigned long lastRunOneDay = 0;
+    int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 
-	// Update all parameters and send to MQTT.
-	if (checkTimer(&lastRunOneMinute, STATUS_INTERVAL_ONE_MINUTE))
-	{
-		numberOfRegisters = sizeof(_mqttOneMinuteStatusRegisters) / sizeof(struct mqttState);
-		sendDataFromAppropriateArray(_mqttOneMinuteStatusRegisters, numberOfRegisters, DEVICE_NAME MQTT_MES_STATE_MINUTE_ONE);
-	}
+    if (resendAllData) {
+	resendAllData = false;
+	lastRunTenSeconds = lastRunOneMinute = lastRunFiveMinutes = lastRunOneHour = lastRunOneDay = 0;
+    }
 
-	// Update all parameters and send to MQTT.
-	if (checkTimer(&lastRunFiveMinutes, STATUS_INTERVAL_FIVE_MINUTE))
-	{
-		numberOfRegisters = sizeof(_mqttFiveMinuteStatusRegisters) / sizeof(struct mqttState);
-		sendDataFromAppropriateArray(_mqttFiveMinuteStatusRegisters, numberOfRegisters, DEVICE_NAME MQTT_MES_STATE_MINUTE_FIVE);
+    // Update all parameters and send to MQTT.
+    if (checkTimer(&lastRunTenSeconds, STATUS_INTERVAL_TEN_SECONDS)) {
+	sendStatus();
+	for (int i = 0; i < numberOfEntities; i++) {
+	    if (_mqttAllEntities[i].updateFreq == updateFreqTenSec) {
+		sendDataFromMqttState(&_mqttAllEntities[i], false);
+	    }
 	}
+    }
 
-	// Update all parameters and send to MQTT.
-	if (checkTimer(&lastRunOneHour, STATUS_INTERVAL_ONE_HOUR))
-	{
-		numberOfRegisters = sizeof(_mqttOneHourStatusRegisters) / sizeof(struct mqttState);
-		sendDataFromAppropriateArray(_mqttOneHourStatusRegisters, numberOfRegisters, DEVICE_NAME MQTT_MES_STATE_HOUR_ONE);
+    if (checkTimer(&lastRunOneMinute, STATUS_INTERVAL_ONE_MINUTE)) {
+	for (int i = 0; i < numberOfEntities; i++) {
+	    if (_mqttAllEntities[i].updateFreq == updateFreqOneMin) {
+		sendDataFromMqttState(&_mqttAllEntities[i], false);
+	    }
 	}
+	sendHaData();
+    }
 
-	// Update all parameters and send to MQTT.
-	if (checkTimer(&lastRunOneDay, STATUS_INTERVAL_ONE_DAY))
-	{
-		numberOfRegisters = sizeof(_mqttOneDayStatusRegisters) / sizeof(struct mqttState);
-		sendDataFromAppropriateArray(_mqttOneDayStatusRegisters, numberOfRegisters, DEVICE_NAME MQTT_MES_STATE_DAY_ONE);
+    if (checkTimer(&lastRunFiveMinutes, STATUS_INTERVAL_FIVE_MINUTE)) {
+	for (int i = 0; i < numberOfEntities; i++) {
+	    if (_mqttAllEntities[i].updateFreq == updateFreqFiveMin) {
+		sendDataFromMqttState(&_mqttAllEntities[i], false);
+	    }
 	}
+    }
+
+    if (checkTimer(&lastRunOneHour, STATUS_INTERVAL_ONE_HOUR)) {
+	for (int i = 0; i < numberOfEntities; i++) {
+	    if (_mqttAllEntities[i].updateFreq == updateFreqOneHour) {
+		sendDataFromMqttState(&_mqttAllEntities[i], false);
+	    }
+	}
+    }
+
+    if (checkTimer(&lastRunOneDay, STATUS_INTERVAL_ONE_DAY)) {
+	for (int i = 0; i < numberOfEntities; i++) {
+	    if (_mqttAllEntities[i].updateFreq == updateFreqOneDay) {
+		sendDataFromMqttState(&_mqttAllEntities[i], false);
+	    }
+	}
+    }
 }
 
-void sendDataFromAppropriateArray(mqttState* registerArray, int numberOfRegisters, char* topic)
+void
+sendDataFromMqttState(mqttState *entity, bool doHomeAssistant)
 {
-	int	l = 0;
+    char topic[128], *entityType;
+    // For getting back out of flash - Storing these arrays in PROGMEM so they don't use valuable RAM.
+    mqttState singleEntity;
+    // For storing results
+    modbusRequestAndResponseStatusValues result;
+    modbusRequestAndResponseStatusValues resultAddedToPayload;
 
-	// For getting back out of flash - Storing these arrays in PROGMEM so they don't use valuable RAM.
-	mqttState singleRegister;
+    emptyPayload();
 
-	// For storing results
-	modbusRequestAndResponseStatusValues result;
-	modbusRequestAndResponseStatusValues resultAddedToPayload;
+    memcpy_P(&singleEntity, entity, sizeof(mqttState));
 
-	emptyPayload();
+    switch (singleEntity.haClass) {
+    case homeAssistantClass::homeAssistantClassBox:
+	entityType = "number";
+	break;
+    case homeAssistantClass::homeAssistantClassSelect:
+	entityType = "select";
+	break;
+    default:
+	entityType = "sensor";
+	break;
+    }
 
-	resultAddedToPayload = addToPayload("{\r\n");
-	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::addedToPayload)
-	{
-		for (l = 0; l < numberOfRegisters; l++)
-		{
-			memcpy_P(&singleRegister.registerAddress, &registerArray[l].registerAddress, 2);
-			strcpy_P(singleRegister.mqttName, registerArray[l].mqttName);
+    if (doHomeAssistant) {
+	snprintf(topic, sizeof(topic), "homeassistant/%s/%s/%s/config", entityType, haUniqueId, singleEntity.mqttName);
+	result = addConfig(&singleEntity, resultAddedToPayload);
+    } else {
+	snprintf(topic, sizeof(topic), DEVICE_NAME "/%s/%s/state", haUniqueId, singleEntity.mqttName);
+	result = addState(&singleEntity, resultAddedToPayload);
+    }
 
-			result = addStateInfo(singleRegister.registerAddress, singleRegister.mqttName, l < (numberOfRegisters - 1), resultAddedToPayload);
-			
-			if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity)
-			{
-				// If the response to addStateInfo is payload exceeded get out, We will permit failing registers to carry on and try the next one.
-				break;
-			}
-		}
-		if (resultAddedToPayload != modbusRequestAndResponseStatusValues::payloadExceededCapacity)
-		{
-			// Footer, if we haven't already bombed out with payload issues
-			resultAddedToPayload = addToPayload("}");
-		}
-
-		// And send
-		sendMqtt(topic);
-	}
-	else
-	{
-#ifdef DEBUG
-		Serial.println("Invalid buffer");
-#endif
-	}
+    if ((resultAddedToPayload != modbusRequestAndResponseStatusValues::payloadExceededCapacity) &&
+	(result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess)) {
+	// And send
+	sendMqtt(topic);
+    }
 }
-
 
 
 /*
@@ -1203,790 +1677,331 @@ mqttCallback()
 */
 void mqttCallback(char* topic, byte* message, unsigned int length)
 {
-	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
-	modbusRequestAndResponse response;
-	modbusRequestAndResponseStatusValues resultDispatch = modbusRequestAndResponseStatusValues::preProcessing;
-	modbusRequestAndResponse responseDispatch;
-	modbusRequestAndResponseStatusValues resultAddToPayload = modbusRequestAndResponseStatusValues::addedToPayload;
+    modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+    modbusRequestAndResponse response;
 
-	char stateAddition[256] = ""; // 256 should cover individual additions to be added to the payload.
-	char topicResponse[100] = ""; // 100 should cover a topic name
+#define DISABLE_JSON
+#ifndef DISABLE_JSON
+    // Variables for new JSON parser
+    int iSegNameCounter;
+    int iSegValueCounter;
+    int iPairNameCounter;
+    int iPairValueCounter;
+    int iCleanCounter;
+    int iCounter;
 
+    // All are emptied on creation as new arrays will just tend to have garbage in which would be recognised as actual content.
+    char pairNameRaw[32] = "";
+    char pairNameClean[32] = "";
+    char pairValueRaw[32] = "";
+    char pairValueClean[32] = "";
+    char registerAddress[32] = "";
+    char dataBytes[32] = "";
+    char value[32] = "";
+    char watts[32] = "";
+    char duration[32] = "";
+    char socPercent[32] = "";
+    char startPos[32] = "";
+    char endPos[32] = "";
+#endif // ! DISABLE_JSON
 
-	// Variables for new JSON parser
-	int iSegNameCounter;
-	int iSegValueCounter;
-	int iPairNameCounter;
-	int iPairValueCounter;
-	int iCleanCounter;
-	int iCounter;
+    char mqttIncomingPayload[128] = ""; // Should be enough to cover request JSON.
 
-	// All are emptied on creation as new arrays will just tend to have garbage in which would be recognised as actual content.
-	char pairNameRaw[32] = "";
-	char pairNameClean[32] = "";
-	char pairValueRaw[32] = "";
-	char pairValueClean[32] = "";
-	char registerAddress[32] = "";
-	char dataBytes[32] = "";
-	char value[32] = "";
-	char watts[32] = "";
-	char duration[32] = "";
-	char socPercent[32] = "";
-	char startPos[32] = "";
-	char endPos[32] = "";
-
-	// Convert incoming values into native data types for sending
-	uint16_t registerAddressConverted;
-	uint16_t singleRegisterValueConverted;
-	uint32_t dataRegisterValueConverted;
-	uint32_t chargeDischargeWattsConverted;
-	uint32_t durationSecondsConverted;
-	uint16_t batterySocPercentConverted;
-	uint16_t startPosConverted;
-	uint16_t endPosConverted;
-
-	uint8_t registerCount;
-
-	// Bytes are received back as base ten, 0-255, so four chars to account for null terminator
-	char rawByteForPayload[4] = "";
-	char rawDataForPayload[100] = "";
-	char mqttIncomingPayload[128] = ""; // Should be enough to cover request JSON.
-
-	mqttSubscriptions subScription = mqttSubscriptions::unknown;
-
-	// For getting back out of flash
-	mqttState singleRegister;
-
-	// Start by clearing out the payload
-	emptyPayload();
-
+    mqttState *mqttEntity = NULL;
 
 #ifdef DEBUG
-	sprintf(_debugOutput, "Topic: %s", topic);
-	Serial.println(_debugOutput);
+    sprintf(_debugOutput, "Topic: %s", topic);
+    Serial.println(_debugOutput);
 #endif
 
+    receivedCallbacks++;
 
-	// Get the payload
-	for (int i = 0; i < length; i++)
-	{
-		mqttIncomingPayload[i] = message[i];
+    // Get the payload
+    for (int i = 0; i < length; i++) {
+	mqttIncomingPayload[i] = message[i];
+    }
+#ifdef DEBUG
+    sprintf(_debugOutput, "Payload: %d", length);
+    Serial.println(_debugOutput);
+    Serial.println(mqttIncomingPayload);
+#endif
+
+    // Special case for Home Assistant itself
+    if (strcmp(topic, MQTT_SUB_HOMEASSISTANT) == 0) {
+	if (strcmp(mqttIncomingPayload, "online") == 0) {
+	    resendHaData = true;
+	    resendAllData = true;
+	} else {
+#ifdef DEBUG
+	    sprintf(_debugOutput, "Unknown homeassistant/status: %s", mqttIncomingPayload);
+	    Serial.println(_debugOutput);
+#endif
 	}
-#ifdef DEBUG
-	Serial.println("Payload:");
-	Serial.println(mqttIncomingPayload);
-#endif
+	return; // No further processing needed.
+    } else {
+	// match to DEVICE_NAME "/SERIAL#/MQTT_NAME/command"
+	char matchPrefix[64];
+	bool known = false;
 
-
-	// Get an easy to use subScription type for later
-	if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_READ_HANDLED_REGISTER) == 0)
-	{
-		subScription = mqttSubscriptions::readHandledRegister;
-		strcpy(topicResponse, DEVICE_NAME MQTT_MES_RESPONSE_READ_HANDLED_REGISTER) == 0;
+	snprintf(matchPrefix, sizeof(matchPrefix), DEVICE_NAME "/%s/", haUniqueId);
+	if (!strncmp(topic, matchPrefix, strlen(matchPrefix))) {
+	    if (!strcmp(&topic[strlen(topic) - strlen("/command")], "/command")) {
+		char topicEntityName[64];
+		int topicEntityLen = strlen(topic) - strlen(matchPrefix) - strlen("/command");
+		if (topicEntityLen < sizeof(topicEntityName)) {
+		    strlcpy(topicEntityName, &topic[strlen(matchPrefix)], topicEntityLen + 1);
+		    mqttEntity = lookupSubscription(topicEntityName);
+		}
+	    }
 	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_READ_RAW_REGISTER) == 0)
-	{
-		subScription = mqttSubscriptions::readRawRegister;
-		strcpy(topicResponse, DEVICE_NAME MQTT_MES_RESPONSE_READ_RAW_REGISTER);
+	if (!mqttEntity || mqttEntity->entityId == mqttEntityId::entityUnknown) {
+	    unknownCallbacks++;
+	    return; // No further processing possible.
 	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_WRITE_RAW_SINGLE_REGISTER) == 0)
-	{
-		subScription = mqttSubscriptions::writeRawSingleRegister;
-		strcpy(topicResponse, DEVICE_NAME MQTT_MES_RESPONSE_WRITE_RAW_SINGLE_REGISTER);
-	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_WRITE_RAW_DATA_REGISTER) == 0)
-	{
-		subScription = mqttSubscriptions::writeRawDataRegister;
-		strcpy(topicResponse, DEVICE_NAME MQTT_MES_RESPONSE_WRITE_RAW_DATA_REGISTER);
-	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_READ_HANDLED_REGISTER_ALL) == 0)
-	{
-		subScription = mqttSubscriptions::readHandledRegisterAll;
-		strcpy(topicResponse, DEVICE_NAME MQTT_SUB_RESPONSE_READ_HANDLED_REGISTER_ALL);
-	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_SET_CHARGE) == 0)
-	{
-		subScription = mqttSubscriptions::setCharge;
-		strcpy(topicResponse, DEVICE_NAME MQTT_SUB_RESPONSE_SET_CHARGE);
-	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_SET_DISCHARGE) == 0)
-	{
-		subScription = mqttSubscriptions::setDischarge;
-		strcpy(topicResponse, DEVICE_NAME MQTT_SUB_RESPONSE_SET_DISCHARGE);
-	}
-	else if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_SET_NORMAL) == 0)
-	{
-		subScription = mqttSubscriptions::setNormal;
-		strcpy(topicResponse, DEVICE_NAME MQTT_SUB_RESPONSE_SET_NORMAL);
-	}
-	else
-	{
-		mqttSubscriptions::unknown;
-		result = modbusRequestAndResponseStatusValues::notValidIncomingTopic;
-	}
+    }
 
-	if (result == modbusRequestAndResponseStatusValues::preProcessing)
-	{
-		if (length == 0)
-		{
-			// We won't be doing anything if no payload
-			result = modbusRequestAndResponseStatusValues::noMQTTPayload;
-			strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_NO_MQTT_PAYLOAD_MQTT_DESC);
+    if (length == 0) {
+	badCallbacks++;
+	return; // We won't be doing anything if no payload
+    }
+
+#ifndef DISABLE_JSON
+    // Rudimentary JSON parser here, saves on using a library
+    // Go through character by character
+    for (iCounter = 0; iCounter < length; iCounter++) {
+	// Find a colon
+	if (mqttIncomingPayload[iCounter] == ':') {
+	    // Everything to left is name until reached the start, a comma or a left brace.
+	    for (iSegNameCounter = iCounter - 1; iSegNameCounter >= 0; iSegNameCounter--) {
+		if (mqttIncomingPayload[iSegNameCounter] == ',' || mqttIncomingPayload[iSegNameCounter] == '{') {
+		    iSegNameCounter++;
+		    break;
 		}
-	}
+	    }
+	    if (iSegNameCounter < 0) {
+		// If went beyond the start, correct
+		iSegNameCounter = 0;
+	    }
+	    // Segment name is now from the following character until before the colon
+	    iPairNameCounter = 0;
+	    for (int x = iSegNameCounter; x < iCounter; x++) {
+		pairNameRaw[iPairNameCounter] = mqttIncomingPayload[x];
+		iPairNameCounter++;
+	    }
+	    pairNameRaw[iPairNameCounter] = '\0';
 
-	if (result == modbusRequestAndResponseStatusValues::preProcessing)
-	{
-		// Rudimentary JSON parser here, saves on using a library
-		// Go through character by character
-		for (iCounter = 0; iCounter < length; iCounter++)
-		{
-			// Find a colon
-			if (mqttIncomingPayload[iCounter] == ':')
-			{
-				// Everything to left is name until reached the start, a comma or a left brace.
-				for (iSegNameCounter = iCounter - 1; iSegNameCounter >= 0; iSegNameCounter--)
-				{
-					if (mqttIncomingPayload[iSegNameCounter] == ',' || mqttIncomingPayload[iSegNameCounter] == '{')
-					{
-						iSegNameCounter++;
-						break;
-					}
-				}
-				if (iSegNameCounter < 0)
-				{
-					// If went beyond the start, correct
-					iSegNameCounter = 0;
-				}
-				// Segment name is now from the following character until before the colon
-				iPairNameCounter = 0;
-				for (int x = iSegNameCounter; x < iCounter; x++)
-				{
-					pairNameRaw[iPairNameCounter] = mqttIncomingPayload[x];
-					iPairNameCounter++;
-				}
-				pairNameRaw[iPairNameCounter] = '\0';
-
-
-				// Everything to right is value until reached the end, a comma or a right brace.
-				for (iSegValueCounter = iCounter + 1; iSegValueCounter < length; iSegValueCounter++)
-				{
-					if (mqttIncomingPayload[iSegValueCounter] == ',' || mqttIncomingPayload[iSegValueCounter] == '}')
-					{
-						iSegValueCounter--;
-						break;
-					}
-				}
-				// Correct if went beyond the end
-				if (iSegValueCounter >= length)
-				{
-					// If went beyond end, correct
-					iSegValueCounter = length - 1;
-				}
-				// Segment value is now from the after the colon until the found character
-				iPairValueCounter = 0;
-				for (int x = iCounter + 1; x <= iSegValueCounter; x++)
-				{
-					pairValueRaw[iPairValueCounter] = mqttIncomingPayload[x];
-					iPairValueCounter++;
-				}
-				pairValueRaw[iPairValueCounter] = '\0';
-
-
-				// Transfer to a cleansed copy, without unwanted chars
-
-				iPairNameCounter = 0;
-				iCleanCounter = 0;
-				while (pairNameRaw[iCleanCounter] != 0)
-				{
-					// Allow alpha numeric, upper case and lower case
-					if ((pairNameRaw[iCleanCounter] >= 'a' && pairNameRaw[iCleanCounter] <= 'z') || (pairNameRaw[iCleanCounter] >= 'A' && pairNameRaw[iCleanCounter] <= 'Z') || (pairNameRaw[iCleanCounter] >= '0' && pairNameRaw[iCleanCounter] <= '9'))
-					{
-						// Transfer Over
-						pairNameClean[iPairNameCounter] = pairNameRaw[iCleanCounter];
-						iPairNameCounter++;
-					}
-					iCleanCounter++;
-				}
-				pairNameClean[iPairNameCounter] = '\0';
-
-
-
-				iPairValueCounter = 0;
-				iCleanCounter = 0;
-				while (pairValueRaw[iCleanCounter] != 0)
-				{
-					// Allow a minus, x (for hex), and 0-9, and a-f A-F for hex
-					if ((pairValueRaw[iCleanCounter] == '-' || pairValueRaw[iCleanCounter] == 'x' || (pairValueRaw[iCleanCounter] >= '0' && pairValueRaw[iCleanCounter] <= '9') || (pairValueRaw[iCleanCounter] >= 'A' && pairValueRaw[iCleanCounter] <= 'F')) || (pairValueRaw[iCleanCounter] >= 'a' && pairValueRaw[iCleanCounter] <= 'f'))
-					{
-						// Transfer Over
-						pairValueClean[iPairValueCounter] = pairValueRaw[iCleanCounter];
-						iPairValueCounter++;
-					}
-					iCleanCounter++;
-				}
-				pairValueClean[iPairValueCounter] = '\0';
-
-
-#ifdef DEBUG
-				sprintf(_debugOutput, "Got a cleaned JSON parameter of '%s', value '%s'", pairNameClean, pairValueClean);
-				Serial.println(_debugOutput);
-#endif
-
-				if (strcmp(pairNameClean, "registerAddress") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as registerAddress");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(registerAddress, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "dataBytes") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as dataBytes");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(dataBytes, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "value") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as value");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(value, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "watts") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as watts");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(watts, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "duration") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as duration");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(duration, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "socPercent") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as socPercent");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(socPercent, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "start") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as start");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(startPos, pairValueClean);
-				}
-				else if (strcmp(pairNameClean, "end") == 0)
-				{
-#ifdef DEBUG
-					sprintf(_debugOutput, "This was handled as end");
-					Serial.println(_debugOutput);
-#endif
-					strcpy(endPos, pairValueClean);
-				}
-			}
+	    // Everything to right is value until reached the end, a comma or a right brace.
+	    for (iSegValueCounter = iCounter + 1; iSegValueCounter < length; iSegValueCounter++) {
+		if (mqttIncomingPayload[iSegValueCounter] == ',' || mqttIncomingPayload[iSegValueCounter] == '}') {
+		    iSegValueCounter--;
+		    break;
 		}
-	}
+	    }
+	    // Correct if went beyond the end
+	    if (iSegValueCounter >= length) {
+		// If went beyond end, correct
+		iSegValueCounter = length - 1;
+	    }
+	    // Segment value is now from the after the colon until the found character
+	    iPairValueCounter = 0;
+	    for (int x = iCounter + 1; x <= iSegValueCounter; x++) {
+		pairValueRaw[iPairValueCounter] = mqttIncomingPayload[x];
+		iPairValueCounter++;
+	    }
+	    pairValueRaw[iPairValueCounter] = '\0';
 
-
-	// Carry on?
-	if (result == modbusRequestAndResponseStatusValues::preProcessing)
-	{
-		if (subScription == mqttSubscriptions::readHandledRegister)
-		{
-			// Check if registerAddress found
-			if (!*registerAddress)
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Trying to readHandledRegister without a registerAddress!");
-				Serial.println(_debugOutput);
-#endif
-				result = modbusRequestAndResponseStatusValues::invalidMQTTPayload;
-				strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_INVALID_MQTT_PAYLOAD_MQTT_DESC);
-			}
-			else
-			{
-				// Convert string to a number using base 16.
-				registerAddressConverted = strtoul(registerAddress, NULL, 16);
-
-				result = _registerHandler->readHandledRegister(registerAddressConverted, &response);
-				if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError)
-				{
-					for (int i = 0; i < response.dataSize; i++)
-					{
-						sprintf(rawByteForPayload, "%u,", response.data[i]);
-						strcat(rawDataForPayload, rawByteForPayload);
-					}
-					rawDataForPayload[strlen(rawDataForPayload) - 1] = '\0';
-				}
-			}
+	    // Transfer to a cleansed copy, without unwanted chars
+	    iPairNameCounter = 0;
+	    iCleanCounter = 0;
+	    while (pairNameRaw[iCleanCounter] != 0) {
+		// Allow alpha numeric, upper case and lower case
+		if ((pairNameRaw[iCleanCounter] >= 'a' && pairNameRaw[iCleanCounter] <= 'z') || (pairNameRaw[iCleanCounter] >= 'A' && pairNameRaw[iCleanCounter] <= 'Z') || (pairNameRaw[iCleanCounter] >= '0' && pairNameRaw[iCleanCounter] <= '9')) {
+		    // Transfer Over
+		    pairNameClean[iPairNameCounter] = pairNameRaw[iCleanCounter];
+		    iPairNameCounter++;
 		}
-		else if (subScription == mqttSubscriptions::readRawRegister)
-		{
-			if (!*registerAddress || !*dataBytes)
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Trying to readRawRegister without a registerAddress or dataBytes!");
-				Serial.println(_debugOutput);
-#endif
-				result = modbusRequestAndResponseStatusValues::invalidMQTTPayload;
-				strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_INVALID_MQTT_PAYLOAD_MQTT_DESC);
-			}
-			else
-			{
-				registerAddressConverted = strtoul(registerAddress, NULL, 16);
+		iCleanCounter++;
+	    }
+	    pairNameClean[iPairNameCounter] = '\0';
 
-				// Convert string to number using base ten
-				registerCount = strtoul(dataBytes, NULL, 10);
-				registerCount = registerCount / 2;
-				response.registerCount = registerCount;
-
-				result = _registerHandler->readRawRegister(registerAddressConverted, &response);
-			}
-
-			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError)
-			{
-				for (int i = 0; i < response.dataSize; i++)
-				{
-					sprintf(rawByteForPayload, "%u,", response.data[i]);
-					strcat(rawDataForPayload, rawByteForPayload);
-				}
-				rawDataForPayload[strlen(rawDataForPayload) - 1] = '\0';
-			}
+	    iPairValueCounter = 0;
+	    iCleanCounter = 0;
+	    while (pairValueRaw[iCleanCounter] != 0) {
+		// Allow a minus, x (for hex), and 0-9, and a-f A-F for hex
+		if ((pairValueRaw[iCleanCounter] == '-' || pairValueRaw[iCleanCounter] == 'x' || (pairValueRaw[iCleanCounter] >= '0' && pairValueRaw[iCleanCounter] <= '9') || (pairValueRaw[iCleanCounter] >= 'A' && pairValueRaw[iCleanCounter] <= 'F')) || (pairValueRaw[iCleanCounter] >= 'a' && pairValueRaw[iCleanCounter] <= 'f')) {
+		    // Transfer Over
+		    pairValueClean[iPairValueCounter] = pairValueRaw[iCleanCounter];
+		    iPairValueCounter++;
 		}
-		else if (subScription == mqttSubscriptions::writeRawSingleRegister)
-		{
-			if (!*registerAddress || !*value)
-			{
+		iCleanCounter++;
+	    }
+	    pairValueClean[iPairValueCounter] = '\0';
 #ifdef DEBUG
-				sprintf(_debugOutput, "Trying to writeRawSingleRegister without a registerAddress or value!");
-				Serial.println(_debugOutput);
-#endif
-				result = modbusRequestAndResponseStatusValues::invalidMQTTPayload;
-				strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_INVALID_MQTT_PAYLOAD_MQTT_DESC);
-			}
-			else
-			{
-				registerAddressConverted = strtoul(registerAddress, NULL, 16);
-				singleRegisterValueConverted = strtoul(value, NULL, 10);
-
-				result = _registerHandler->writeRawSingleRegister(registerAddressConverted, singleRegisterValueConverted, &response);
-			}
-
-			if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError)
-			{
-				for (int i = 0; i < response.dataSize; i++)
-				{
-					sprintf(rawByteForPayload, "%u,", response.data[i]);
-					strcat(rawDataForPayload, rawByteForPayload);
-				}
-				rawDataForPayload[strlen(rawDataForPayload) - 1] = '\0';
-			}
-		}
-		else if (subScription == mqttSubscriptions::writeRawDataRegister)
-		{
-			if (!*registerAddress || !*dataBytes || !*value)
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Trying to writeRawDataRegister without a registerAddress, dataBytes or value!");
-				Serial.println(_debugOutput);
-#endif
-				result = modbusRequestAndResponseStatusValues::invalidMQTTPayload;
-				strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_INVALID_MQTT_PAYLOAD_MQTT_DESC);
-			}
-			else
-			{
-				registerAddressConverted = strtoul(registerAddress, NULL, 16);
-				dataRegisterValueConverted = strtoul(value, NULL, 10);
-				registerCount = strtoul(dataBytes, NULL, 10);
-				registerCount = registerCount / 2;
-				response.registerCount = registerCount;
-
-				result = _registerHandler->writeRawDataRegister(registerAddressConverted, dataRegisterValueConverted, &response);
-			}
-			if (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError)
-			{
-				for (int i = 0; i < response.dataSize; i++)
-				{
-					sprintf(rawByteForPayload, "%u,", response.data[i]);
-					strcat(rawDataForPayload, rawByteForPayload);
-				}
-				rawDataForPayload[strlen(rawDataForPayload) - 1] = '\0';
-			}
-		}
-		else if (subScription == mqttSubscriptions::readHandledRegisterAll)
-		{
-			if(!*startPos || !*endPos)
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Trying to readHandledRegisterAll without a start or end!");
-				Serial.println(_debugOutput);
-#endif
-				result = modbusRequestAndResponseStatusValues::invalidMQTTPayload;
-				strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_INVALID_MQTT_PAYLOAD_MQTT_DESC);
-			}
-			else
-			{
-				startPosConverted = strtoul(startPos, NULL, 10);
-				endPosConverted = strtoul(endPos, NULL, 10);
-
-				// Despite a start and end provided, ensure not below zero and not above the array size
-				int numberOfRegisters = sizeof(_mqttAllHandledRegisters) / sizeof(struct mqttState);
-				uint16_t minPosition = startPosConverted < 0 ? 0 : startPosConverted;
-				uint16_t maxPosition = endPosConverted > numberOfRegisters - 1 ? numberOfRegisters - 1 : endPosConverted;
-
-				resultAddToPayload = addToPayload("{\r\n");
-				if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload)
-				{
-					for (int l = minPosition; l <= maxPosition; l++)
-					{
-						memcpy_P(&singleRegister.registerAddress, &_mqttAllHandledRegisters[l].registerAddress, 2);
-						strcpy_P(singleRegister.mqttName, _mqttAllHandledRegisters[l].mqttName);
-
-						result = addStateInfo(singleRegister.registerAddress, singleRegister.mqttName, l < maxPosition, resultAddToPayload);
-						if (resultAddToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity)
-						{
-							// If the response to addStateInfo is payload exceeded get out, We will permit failing registers to carry on and try the next one.
-							break;
-						}
-					}
-					if (resultAddToPayload != modbusRequestAndResponseStatusValues::payloadExceededCapacity)
-					{
-						// Footer, if we haven't already bombed out with payload issues
-						resultAddToPayload = addToPayload("}");
-					}
-				}
-			}
-		}
-		else if ((subScription == mqttSubscriptions::setCharge) || (subScription == mqttSubscriptions::setDischarge))
-		{
-			// Handles dispatch mode for charge and discharge
-			// Code is fundamentally the same, just a different charge power.
-			int multiplier = 1;
-
-			//if (strcmp(topic, DEVICE_NAME MQTT_SUB_REQUEST_SET_CHARGE) == 0)
-			if (subScription == mqttSubscriptions::setCharge)
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Multiplier for setCharge will be -1");
-				Serial.println(_debugOutput);
-#endif
-				multiplier = -1;
-			}
-			else
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Multiplier for setDischarge will be 1");
-				Serial.println(_debugOutput);
-#endif
-				multiplier = 1;
-			}
-
-			if (!*watts || !*socPercent || !*duration)
-			{
-#ifdef DEBUG
-				sprintf(_debugOutput, "Trying to setCharge or setDischarge without a watts, socPercent or duration!");
-				Serial.println(_debugOutput);
-#endif
-				result = modbusRequestAndResponseStatusValues::invalidMQTTPayload;
-				strcpy(response.statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_INVALID_MQTT_PAYLOAD_MQTT_DESC);
-			}
-			else
-			{
-				chargeDischargeWattsConverted = strtoul(watts, NULL, 10);
-				batterySocPercentConverted = strtoul(socPercent, NULL, 10);
-				durationSecondsConverted = strtoul(duration, NULL, 10);
-
-#ifdef DEBUG
-				sprintf(_debugOutput, "Base 10 type-cast values for watts, socPercent and duration are %d, %d and %d respectively", chargeDischargeWattsConverted, batterySocPercentConverted, durationSecondsConverted);
-				Serial.println(_debugOutput);
-#endif
-				// Adjust
-				// Charge < 32000, discharge > 32000
-				chargeDischargeWattsConverted = 32000 + (chargeDischargeWattsConverted * multiplier);
-				batterySocPercentConverted = batterySocPercentConverted / DISPATCH_SOC_MULTIPLIER;
-
-#ifdef DEBUG
-				sprintf(_debugOutput, "And adjusted values for watts and socPercent are %d and %d respectively", chargeDischargeWattsConverted, batterySocPercentConverted);
-				Serial.println(_debugOutput);
+	    snprintf(_debugOutput, sizeof(_debugOutput), "Got a cleaned JSON parameter of '%s', value '%s'", pairNameClean, pairValueClean);
+	    Serial.println(_debugOutput);
 #endif
 
-				// First enable dispatch
-				responseDispatch.registerCount = 1;
-				resultDispatch = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_START, &responseDispatch);
-				if (resultDispatch != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess)
-				{
-					sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"REG_DISPATCH_RW_DISPATCH_START\"\r\n}", responseDispatch.statusMqttMessage);
-				}
-				else
-				{
-					delay(RS485_TRIES * 50);
-					// Now set power
-					responseDispatch.registerCount = 2;
-					resultDispatch = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, chargeDischargeWattsConverted, &responseDispatch);
-					if (resultDispatch != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess)
-					{
-						sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"REG_DISPATCH_RW_ACTIVE_POWER_1\"\r\n}", responseDispatch.statusMqttMessage);
-					}
-					else
-					{
-						delay(RS485_TRIES * 50);
-						// Now set duration
-						responseDispatch.registerCount = 2;
-						resultDispatch = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_DISPATCH_TIME_1, durationSecondsConverted, &responseDispatch);
-						if (resultDispatch != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess)
-						{
-							sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"REG_DISPATCH_RW_DISPATCH_TIME_1\"\r\n}", responseDispatch.statusMqttMessage);
-						}
-						else
-						{
-							delay(RS485_TRIES * 50);
-							// Now set battery
-							responseDispatch.registerCount = 1;
-							resultDispatch = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_DISPATCH_SOC, batterySocPercentConverted, &responseDispatch);
-							if (resultDispatch != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess)
-							{
-								sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"REG_DISPATCH_RW_DISPATCH_SOC\"\r\n}", responseDispatch.statusMqttMessage);
-							}
-							else
-							{
-								delay(RS485_TRIES * 50);
-								// Finally set the mode to start
-								responseDispatch.registerCount = 1;
-								resultDispatch = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_DISPATCH_MODE, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL, &responseDispatch);
-								if (resultDispatch != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess)
-								{
-									sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"REG_DISPATCH_RW_DISPATCH_MODE\"\r\n}", responseDispatch.statusMqttMessage);
-								}
-								else
-								{
-									if (subScription == mqttSubscriptions::setCharge)
-									{
-										sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"\"\r\n}", MODBUS_REQUEST_AND_RESPONSE_SET_CHARGE_SUCCESS_MQTT_DESC);
-										result = modbusRequestAndResponseStatusValues::setChargeSuccess;
-									}
-									else
-									{
-										sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"\"\r\n}", MODBUS_REQUEST_AND_RESPONSE_SET_DISCHARGE_SUCCESS_MQTT_DESC);
-										result = modbusRequestAndResponseStatusValues::setDischargeSuccess;
-									}
-									
-								}
-							}
-						}
-					}
-				}
-			}
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-		else if (subScription == mqttSubscriptions::setNormal)
-		{
-			// Turns off dispatch mode for normal
-
-			responseDispatch.registerCount = 1;
-			resultDispatch = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_STOP, &responseDispatch);
-			if (resultDispatch != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess)
-			{
-				sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"REG_DISPATCH_RW_DISPATCH_START\"\r\n}", responseDispatch.statusMqttMessage);
-			}
-			else
-			{
-				sprintf(stateAddition, "{\r\n    \"responseStatus\": \"%s\",\r\n    \"failureDetail\": \"\"\r\n}", MODBUS_REQUEST_AND_RESPONSE_SET_NORMAL_SUCCESS_MQTT_DESC);
-			}
-			result = modbusRequestAndResponseStatusValues::setNormalSuccess;
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-	}
-
-
-
-	// Set Charge/Discharge/Normal/ReadAll do their own payload constructions.
-	// For anything else, construct a standard response based on what we know from the request and the result.
-	if (result == modbusRequestAndResponseStatusValues::invalidMQTTPayload || result == modbusRequestAndResponseStatusValues::noMQTTPayload || subScription == mqttSubscriptions::readHandledRegister || subScription == mqttSubscriptions::readRawRegister || subScription == mqttSubscriptions::writeRawDataRegister || subScription == mqttSubscriptions::writeRawSingleRegister)
-	{
-		// Construct a response based on what we know from above
-		resultAddToPayload = addToPayload("{\r\n");
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload)
-		{
-			sprintf(stateAddition, "    \"responseStatus\": \"%s\",\r\n", response.statusMqttMessage);
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-		// Providing we had a payload and it was valid, we can at least send the registerAdress back to give the user some context
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload && (result != modbusRequestAndResponseStatusValues::noMQTTPayload && result != modbusRequestAndResponseStatusValues::invalidMQTTPayload))
-		{
-			sprintf(stateAddition, "    \"registerAddress\": \"%s\",\r\n", registerAddress);
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-		// If some kind of result came back from the Alpha (even a slave error) we can give the function code
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload && (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError || result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess || result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess))
-		{
-			sprintf(stateAddition, "    \"functionCode\": %d,\r\n", response.functionCode);
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-		// Content returned by a Read Handled request
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload && (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess && subScription == mqttSubscriptions::readHandledRegister))
-		{
-			sprintf(stateAddition, "    \"registerName\": \"%s\",\r\n", response.mqttName);
-			resultAddToPayload = addToPayload(stateAddition);
-			if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload)
-			{
-				sprintf(stateAddition, "    \"dataType\": \"%s\",\r\n", response.returnDataTypeDesc);
-				resultAddToPayload = addToPayload(stateAddition);
-			}
-			if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload)
-			{
-				switch (response.returnDataType)
-				{
-				case modbusReturnDataType::character:
-				{
-					sprintf(stateAddition, "    \"dataValue\": \"%s\",\r\n", response.characterValue);
-					resultAddToPayload = addToPayload(stateAddition);
-					break;
-				}
-				case modbusReturnDataType::signedInt:
-				{
-					sprintf(stateAddition, "    \"dataValue\": %d,\r\n", response.signedIntValue);
-					resultAddToPayload = addToPayload(stateAddition);
-					break;
-				}
-				case modbusReturnDataType::unsignedInt:
-				{
-					sprintf(stateAddition, "    \"dataValue\": %u,\r\n", response.unsignedIntValue);
-					resultAddToPayload = addToPayload(stateAddition);
-					break;
-				}
-				case modbusReturnDataType::signedShort:
-				{
-					sprintf(stateAddition, "    \"dataValue\": %d,\r\n", response.signedShortValue);
-					resultAddToPayload = addToPayload(stateAddition);
-					break;
-				}
-				case modbusReturnDataType::unsignedShort:
-				{
-					sprintf(stateAddition, "    \"dataValue\": %u,\r\n", response.unsignedShortValue);
-					resultAddToPayload = addToPayload(stateAddition);
-					break;
-				}
-				default:
-				{
-					sprintf(stateAddition, "    \"dataValue\": \"\",\r\n");
-					resultAddToPayload = addToPayload(stateAddition);
-					break;
-				}
-				}
-			}
-			if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload)
-			{
-				bool addQuote = (response.returnDataType == modbusReturnDataType::character || response.hasLookup);
-				sprintf(stateAddition, "    \"formattedDataValue\": %s%s%s,\r\n", addQuote ? "\"" : "", response.dataValueFormatted, addQuote ? "\"" : "");
-				resultAddToPayload = addToPayload(stateAddition);
-			}
-
-		}
-
-
-		// Slave error can provide the code back
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload && (result == modbusRequestAndResponseStatusValues::slaveError))
-		{
-			sprintf(stateAddition, "    \"slaveErrorCode\": %d,\r\n", response.data[0]);
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-		// Again, if some kind of result came back we can expose the raw data bytes for the user to process if they want
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload && (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError || result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess || result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess))
-		{
-			sprintf(stateAddition, "    \"rawDataSize\": %u,\r\n", response.dataSize);
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-		if (resultAddToPayload == modbusRequestAndResponseStatusValues::addedToPayload && (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess || result == modbusRequestAndResponseStatusValues::slaveError || result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess || result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess))
-		{
-			sprintf(stateAddition, "    \"rawData\": [%s],\r\n", rawDataForPayload);
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-		// Horrible, however it sorts out needing to worry about commas from any of the above statements and is little overhead.
-		if (resultAddToPayload)
-		{
-			sprintf(stateAddition, "    \"end\": \"true\"\r\n}");
-			resultAddToPayload = addToPayload(stateAddition);
-		}
-
-	}
-
-	if (subScription != mqttSubscriptions::unknown && result != modbusRequestAndResponseStatusValues::notValidIncomingTopic)
-	{
-		sendMqtt(topicResponse);
-	}
-
-	emptyPayload();
-	return;
-}
-
-
-/*
-sendMqtt
-
-Sends whatever is in the modular level payload to the specified topic.
-*/
-void sendMqtt(char *topic)
-{
-	// Attempt a send
-	if (!_mqtt.publish(topic, _mqttPayload))
-	{
+	    if (strcmp(pairNameClean, "registerAddress") == 0) {
 #ifdef DEBUG
-		sprintf(_debugOutput, "MQTT publish failed to %s", topic);
+		sprintf(_debugOutput, "This was handled as registerAddress");
 		Serial.println(_debugOutput);
-		Serial.println(_mqttPayload);
 #endif
-	}
-	else
-	{
+		strcpy(registerAddress, pairValueClean);
+	    } else if (strcmp(pairNameClean, "dataBytes") == 0) {
 #ifdef DEBUG
-		//sprintf(_debugOutput, "MQTT publish success");
-		//Serial.println(_debugOutput);
+		sprintf(_debugOutput, "This was handled as dataBytes");
+		Serial.println(_debugOutput);
 #endif
+		strcpy(dataBytes, pairValueClean);
+	    } else if (strcmp(pairNameClean, "value") == 0) {
+#ifdef DEBUG
+		sprintf(_debugOutput, "This was handled as value");
+		Serial.println(_debugOutput);
+#endif
+		strcpy(value, pairValueClean);
+	    } else if (strcmp(pairNameClean, "watts") == 0) {
+#ifdef DEBUG
+		sprintf(_debugOutput, "This was handled as watts");
+		Serial.println(_debugOutput);
+#endif
+		strcpy(watts, pairValueClean);
+	    } else if (strcmp(pairNameClean, "duration") == 0) {
+#ifdef DEBUG
+		sprintf(_debugOutput, "This was handled as duration");
+		Serial.println(_debugOutput);
+#endif
+		strcpy(duration, pairValueClean);
+	    } else if (strcmp(pairNameClean, "socPercent") == 0) {
+#ifdef DEBUG
+		sprintf(_debugOutput, "This was handled as socPercent");
+		Serial.println(_debugOutput);
+#endif
+		strcpy(socPercent, pairValueClean);
+	    } else if (strcmp(pairNameClean, "start") == 0) {
+#ifdef DEBUG
+		sprintf(_debugOutput, "This was handled as start");
+		Serial.println(_debugOutput);
+#endif
+		strcpy(startPos, pairValueClean);
+	    } else if (strcmp(pairNameClean, "end") == 0) {
+#ifdef DEBUG
+		sprintf(_debugOutput, "This was handled as end");
+		Serial.println(_debugOutput);
+#endif
+		strcpy(endPos, pairValueClean);
+	    }
 	}
+    }
+#endif // ! DISABLE_JSON
 
-	// Empty payload for next use.
-	emptyPayload();
-	return;
+    // Update system!!!
+#ifndef DISABLE_JSON
+    if (mqttEntity->entityId == mqttEntityId::entityErrors) {
+	if (!*value) {
+	    badCallbacks++;
+#ifdef DEBUG
+	    sprintf(_debugOutput, "Trying to writeErrors without a value!");
+	    Serial.println(_debugOutput);
+#endif
+	} else {
+	    int32_t  singleInt32;
+	    singleInt32 = strtol(value, NULL, 10);
+	    result = dave_writeRegisterInt(mqttEntity, singleInt32, &response);
+	    // DAVE - handle error
+	}
+#else // ! DISABLE_JSON
+    {
+	int32_t  singleInt32;
+	char *endPtr = NULL;
+
+	switch (mqttEntity->entityId) {
+	case mqttEntityId::entityErrors:
+	    singleInt32 = strtol(mqttIncomingPayload, &endPtr, 10);
+	    if ((endPtr != mqttIncomingPayload) && ((singleInt32 != 0) || (errno == 0))) {
+		result = dave_writeRegisterInt(mqttEntity, singleInt32, &response);
+#ifdef DEBUG
+	    } else {
+		sprintf(_debugOutput, "Trying to writeErrors with a bad value! %d", errno);
+		Serial.println(_debugOutput);
+#endif
+	    }
+	    break;
+	case mqttEntityId::entityRegNum:
+	    singleInt32 = strtol(mqttIncomingPayload, &endPtr, 0);
+	    if ((endPtr != mqttIncomingPayload) && ((singleInt32 != 0) || (errno == 0))) {
+		mqttState *relatedMqttEntity = lookupEntity(mqttEntityId::entityRegValue);
+		regNumberToRead = singleInt32;
+		sendDataFromMqttState(relatedMqttEntity, false);
+#ifdef DEBUG
+	    } else {
+		sprintf(_debugOutput, "Trying to set registerNumber with a bad value! %d", errno);
+		Serial.println(_debugOutput);
+#endif
+	    }
+	    break;
+	case mqttEntityId::entityDispatchMode:
+            // DAVE - sanity check value.
+	    // DAVE - need to actually write a register here.  -- And be sure to handle DISPATCH_START_STOP_DESC
+	    strlcpy(dispatchModeDesc, mqttIncomingPayload, sizeof(dispatchModeDesc));
+	    break;
+	default:
+#ifdef DEBUG
+	    sprintf(_debugOutput, "Trying to process a bad entity! %d", mqttEntity->entityId);
+	    Serial.println(_debugOutput);
+#endif
+	    break;
+	}
+#endif // ! DISABLE_JSON
+    }
+
+    // Send (hopefully) updated state.  If we failed to update, sender should notice value not changing.
+    sendDataFromMqttState(mqttEntity, false);
+
+    return;
+}
+
+
+/*
+ * sendMqtt
+ *
+ * Sends whatever is in the modular level payload to the specified topic.
+ */
+void sendMqtt(const char *topic)
+{
+    // Attempt a send
+    if (!_mqtt.publish(topic, _mqttPayload, true)) {
+#ifdef DEBUG
+	snprintf(_debugOutput, sizeof(_debugOutput), "MQTT publish failed to %s", topic);
+	Serial.println(_debugOutput);
+	Serial.println(_mqttPayload);
+#endif
+    } else {
+#ifdef DEBUG
+	//sprintf(_debugOutput, "MQTT publish success");
+	//Serial.println(_debugOutput);
+#endif
+    }
+
+    // Empty payload for next use.
+    emptyPayload();
+    return;
 }
 
 /*
-emptyPayload
-
-Clears every char so end of string can be easily found
-*/
+ * emptyPayload
+ *
+ * Clears every char so end of string can be easily found
+ */
 void emptyPayload()
 {
-	for (int i = 0; i < _maxPayloadSize; i++)
-	{
-		_mqttPayload[i] = '\0';
-	}
+    // DAVE - can we just set first byte to NULL
+    memset(_mqttPayload, 0, _maxPayloadSize);
 }
 
 
-/*
+#ifdef DEBUG_FREEMEM
 uint32_t freeMemory()
 {
-
-	return ESP.getFreeHeap();
+    return ESP.getFreeHeap();
 }
-*/
+#endif // DEBUG_FREEMEM

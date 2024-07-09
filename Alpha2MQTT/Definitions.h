@@ -22,8 +22,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 // Compiling for ESP8266 or ESP32?
-//#define MP_ESP32
-#define MP_ESP8266
+#define MP_ESP32
+//#define MP_ESP8266
 #if (!defined MP_ESP8266) && (!defined MP_ESP32)
 #error You must specify the microprocessor in use
 #endif
@@ -31,17 +31,53 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #if (defined MP_ESP8266) && (defined MP_ESP32)
 #error You must only select one microprocessor from the list
 #endif
+// Display parameters - Set LARGE_DISPLAY for 128x64 oled
+#define LARGE_DISPLAY
 
+// Set your EMS version.  Either EMS2.5 or EMS3.5/EMS3.6
+// If not 3.5/3.6 is not set, then you get 2.5
+#define EMS_35_36
+
+#ifdef LARGE_DISPLAY
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#else // LARGE_DISPLAY
+#define SCREEN_WIDTH 64
+#define SCREEN_HEIGHT 48
+#endif // LARGE_DISPLAY
+
+
+#define DEBUG
+#define DEBUG_FREEMEM
+//#define DEBUG_NO_RS485
+//#define DEBUG_LEVEL2 // For serial flooding action
+//#define DEBUG_OUTPUT_TX_RX
 
 // If values for some registers such as voltage or temperatures appear to be out by a decimal place or two, try the following:
 // Documentation declares 1V - However Presume 0.1 as result appears to reflect this.  I.e. my voltage reading was 2421, * 0.1 for 242.1
+// However EMS3.5/EMS3.6 seems to follow the spec.
+#ifdef EMS_35_36
+#define GRID_VOLTAGE_MULTIPLIER 1
+#else // EMS_35_36
 #define GRID_VOLTAGE_MULTIPLIER 0.1
+#endif // EMS_35_36
 // Documentation declares 0.001V - My min cell voltage is reading as 334, so * 0.001 = 0.334V.  I consider the document wrong, think it should be 0.01
+// However EMS3.5/EMS3.6 seems to follow the spec.
+#ifdef EMS_35_36
+#define CELL_VOLTAGE_MULTIPLIER 0.001
+#else // EMS_35_36
 #define CELL_VOLTAGE_MULTIPLIER 0.01
+#endif // EMS_35_36
 // Documentation declares 0.1D - Mine returns 2720, so assuming actually multiplied by 0.01 to bring to something realistic
+// However EMS3.5/EMS3.6 seems to follow the spec.
+#ifdef EMS_35_36
+#define INVERTER_TEMP_MULTIPLIER 0.1
+#else // EMS_35_36
 #define INVERTER_TEMP_MULTIPLIER 0.01
+#endif // EMS_35_36
 // Documentation declares 0.1kWh - My value was 308695, and according to web interface my total PV is 3086kWh, so multiplier seems wrong
-#define TOTAL_ENERGY_MUTLIPLIER 0.01
+// Note: For EMS3.5/EMS3.6 this seems to use 0.01 and NOT the spec value of 0.1
+#define TOTAL_ENERGY_MULTIPLIER 0.01
 
 
 // After some liaison with a user of Alpha2MQTT on a 115200 baud rate, this fixed inconsistent retrieval
@@ -70,7 +106,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // If your OLED does have an RST pin, set this.
 // An OLED Shield compatible with an ESP8266 does have a RESET pin and it is linked to GPIO0 if using an ESP8266.
 // If you are using the same OLED Shield with an ESP32, by default for this project it is linked to GIO13.
-#define OLED_HAS_RST_PIN
+//#define OLED_HAS_RST_PIN
 
 // Default address of inverter is 0x55 as per Alpha Modbus documentation.  If you have altered it, reflect that change here.
 #define ALPHA_SLAVE_ID 0x55
@@ -586,8 +622,44 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define BATTERY_TYPE_SMILE_BAT_5_JP_DESC "Smile-BAT-JP"
 #define BATTERY_TYPE_SMILE_BAT_13_7P 35
 #define BATTERY_TYPE_SMILE_BAT_13_7P_DESC "Smile-BAT-13.7P"
+#define BATTERY_TYPE_SMILE_BAT_8_2_PHA 77
+#define BATTERY_TYPE_SMILE_BAT_8_2_PHA_DESC "Smile-BAT-8.2PHA"
 
 // Note4 - BATTERY ERROR LOOKUP
+#ifdef EMS_35_36
+#define BATTERY_ERROR_BIT_0 "Temp sensor error"
+#define BATTERY_ERROR_BIT_1 "Mos error"
+#define BATTERY_ERROR_BIT_2 "Circuit breaker open"
+#define BATTERY_ERROR_BIT_3 "Dial switching mode inconsistence"
+#define BATTERY_ERROR_BIT_4 "Slave battery communication lost"
+#define BATTERY_ERROR_BIT_5 "Sn missing"
+#define BATTERY_ERROR_BIT_6 "Master battery communication lost"
+#define BATTERY_ERROR_BIT_7 "Firmware versions inconsistence"
+#define BATTERY_ERROR_BIT_8 "Multi master error"
+#define BATTERY_ERROR_BIT_9 "Mos high temperature"
+#define BATTERY_ERROR_BIT_10 "Insulation fault"
+#define BATTERY_ERROR_BIT_11 "Total pressureabnormal"
+#define BATTERY_ERROR_BIT_12 "Mos feedback failure"
+#define BATTERY_ERROR_BIT_13 "Prefi lled failure"
+#define BATTERY_ERROR_BIT_14 "17823 communication failure"
+#define BATTERY_ERROR_BIT_15 "17841 communication failure"
+#define BATTERY_ERROR_BIT_16 "Mos temperature sensor error"
+#define BATTERY_ERROR_BIT_17 "UNDEFINED"
+#define BATTERY_ERROR_BIT_18 "UNDEFINED"
+#define BATTERY_ERROR_BIT_19 "UNDEFINED"
+#define BATTERY_ERROR_BIT_20 "UNDEFINED"
+#define BATTERY_ERROR_BIT_21 "UNDEFINED"
+#define BATTERY_ERROR_BIT_22 "UNDEFINED"
+#define BATTERY_ERROR_BIT_23 "UNDEFINED"
+#define BATTERY_ERROR_BIT_24 "UNDEFINED"
+#define BATTERY_ERROR_BIT_25 "UNDEFINED"
+#define BATTERY_ERROR_BIT_26 "UNDEFINED"
+#define BATTERY_ERROR_BIT_27 "UNDEFINED"
+#define BATTERY_ERROR_BIT_28 "UNDEFINED"
+#define BATTERY_ERROR_BIT_29 "UNDEFINED"
+#define BATTERY_ERROR_BIT_30 "UNDEFINED"
+#define BATTERY_ERROR_BIT_31 "UNDEFINED"
+#else // EMS_35_36
 #define BATTERY_ERROR_BIT_0 ""
 #define BATTERY_ERROR_BIT_1 ""
 #define BATTERY_ERROR_BIT_2 "Cell Temp Difference"
@@ -620,7 +692,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define BATTERY_ERROR_BIT_29 "Current Sensor Fault"
 #define BATTERY_ERROR_BIT_30 ""
 #define BATTERY_ERROR_BIT_31 "Temp Sensor Fault"
-
+#endif // EMS_35_36
 
 // Note5 - INVERTER OPERATION LOOKUP
 #define INVERTER_OPERATION_MODE_WAIT_MODE 0
@@ -702,9 +774,9 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 // Note7 - DISPATCH MODE LOOKUP
 #define DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV 1
-#define DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC "The battery is only charged via PV"
+#define DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC "Only charge via PV"
 #define DISPATCH_MODE_STATE_OF_CHARGE_CONTROL 2
-#define DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC "State of charge control"
+#define DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC "SOC control"
 #define DISPATCH_MODE_LOAD_FOLLOWING 3
 #define DISPATCH_MODE_LOAD_FOLLOWING_DESC "Load Following"
 #define DISPATCH_MODE_MAXIMISE_OUTPUT 4
@@ -806,49 +878,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 // MQTT Subscriptions
-enum mqttSubscriptions
-{
-	readHandledRegister,
-	readHandledRegisterAll,
-	readRawRegister,
-	writeRawSingleRegister,
-	writeRawDataRegister,
-	setCharge,
-	setDischarge,
-	setNormal,
-	unknown
-};
-#define MQTT_SUB_REQUEST_READ_HANDLED_REGISTER "/request/read/register/handled"
-#define MQTT_SUB_REQUEST_READ_RAW_REGISTER "/request/read/register/raw"
-#define MQTT_SUB_REQUEST_WRITE_RAW_SINGLE_REGISTER "/request/write/register/raw/single"
-#define MQTT_SUB_REQUEST_WRITE_RAW_DATA_REGISTER "/request/write/register/raw/data"
-#define MQTT_SUB_REQUEST_SET_CHARGE "/request/set/charge"
-#define MQTT_SUB_REQUEST_SET_DISCHARGE "/request/set/discharge"
-#define MQTT_SUB_REQUEST_SET_NORMAL "/request/set/normal"
-#define MQTT_SUB_REQUEST_READ_HANDLED_REGISTER_ALL "/request/read/register/handled/all"
-
-// MQTT Responses
-#define MQTT_MES_RESPONSE_READ_HANDLED_REGISTER "/response/read/register/handled"
-#define MQTT_MES_RESPONSE_READ_RAW_REGISTER "/response/read/register/raw"
-#define MQTT_MES_RESPONSE_WRITE_RAW_SINGLE_REGISTER "/response/write/register/raw/single"
-#define MQTT_MES_RESPONSE_WRITE_RAW_DATA_REGISTER "/response/write/register/raw/data"
-#define MQTT_SUB_RESPONSE_SET_CHARGE "/response/set/charge"
-#define MQTT_SUB_RESPONSE_SET_DISCHARGE "/response/set/discharge"
-#define MQTT_SUB_RESPONSE_SET_NORMAL "/response/set/normal"
-#define MQTT_SUB_RESPONSE_READ_HANDLED_REGISTER_ALL "/response/read/register/handled/all"
-
-
-#define MQTT_MES_STATE_SECOND_TEN "/state/second/ten"
-#define MQTT_MES_STATE_MINUTE_ONE "/state/minute/one"
-#define MQTT_MES_STATE_MINUTE_FIVE "/state/minute/five"
-#define MQTT_MES_STATE_HOUR_ONE "/state/hour/one"
-#define MQTT_MES_STATE_DAY_ONE "/state/day/one"
-
-
-
-
-
-
+#define MQTT_SUB_HOMEASSISTANT "homeassistant/status"
 
 // Frame and Function Codes
 #define MAX_FRAME_SIZE_ZERO_INDEXED 63
@@ -948,8 +978,11 @@ enum modbusRequestAndResponseStatusValues
 #define MAX_FORMATTED_DATA_VALUE_LENGTH 129
 #define MAX_DATA_TYPE_DESC_LENGTH 20
 #define MAX_FORMATTED_DATE_LENGTH 21
+#ifdef LARGE_DISPLAY
+#define OLED_CHARACTER_WIDTH 21
+#else // LARGE_DISPLAY
 #define OLED_CHARACTER_WIDTH 11
-
+#endif // LARGE_DISPLAY
 
 // This is the request and return object for the sendModbus() function.
 // Some vars are populated prior to the request, which can be used in the response to handle the data
@@ -965,7 +998,6 @@ struct modbusRequestAndResponse
 	char displayMessage[OLED_CHARACTER_WIDTH] = MODBUS_REQUEST_AND_RESPONSE_PREPROCESSING_DISPLAY_DESC;
 
 	// These variables will be set by the sending process
-	char mqttName[MAX_MQTT_NAME_LENGTH] = "";
 	uint8_t registerCount = 0;
 	modbusReturnDataType returnDataType = modbusReturnDataType::notDefined;
 	char returnDataTypeDesc[MAX_DATA_TYPE_DESC_LENGTH] = MODBUS_RETURN_DATA_TYPE_NOT_DEFINED_DESC;
@@ -980,17 +1012,61 @@ struct modbusRequestAndResponse
 	char dataValueFormatted[MAX_FORMATTED_DATA_VALUE_LENGTH] = "";
 };
 
+enum mqttEntityId {
+#ifdef DEBUG_FREEMEM
+    entityFreemem,
+#endif
+    entityCallbacks,
+    entityErrors,
+    entityVersion,
+    entityRSSI,
+    entityBatSoc,
+    entityBatPwr,
+    entityBatEnergyCharge,
+    entityBatEnergyDischarge,
+    entityGridPwr,
+    entityGridEnergyTo,
+    entityGridEnergyFrom,
+    entityPvPwr,
+    entityPvEnergy,
+    entityDispatchMode,
+    entityBatCap,
+    entityMaxCellTemp,
+    entityInverterTemp,
+    entityGridReg,
+    entityRegNum,
+    entityRegValue,
+    entityUnknown // Must be last entry!!
+};
+
+enum mqttUpdateFreq {
+    updateFreqTenSec,
+    updateFreqOneMin,
+    updateFreqFiveMin,
+    updateFreqOneHour,
+    updateFreqOneDay
+};
+
+enum homeAssistantClass {
+    homeAssistantClassEnergy,
+    homeAssistantClassPower,
+    homeAssistantClassBattery,
+    homeAssistantClassVoltage,
+    homeAssistantClassCurrent,
+    homeAssistantClassTemp,
+    homeAssistantClassInfo,
+    homeAssistantClassSelect,
+    homeAssistantClassBox
+};
 
 struct mqttState
 {
-	uint16_t registerAddress;
-	char mqttName[MAX_MQTT_NAME_LENGTH];
+    mqttEntityId entityId;
+//    uint16_t registerAddress;
+    char mqttName[MAX_MQTT_NAME_LENGTH];
+    mqttUpdateFreq updateFreq;
+    bool subscribe;
+    homeAssistantClass haClass;
 };
 
-
-
-
-#define DEBUG
-//#define DEBUG_LEVEL2 // For serial flooding action
-//#define DEBUG_OUTPUT_TX_RX
-#endif
+#endif // ! _Definitions_h
