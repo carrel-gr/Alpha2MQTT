@@ -110,21 +110,18 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_GRID_METER_RW_GRID_METER_CT_ENABLE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_RW_GRID_METER_CT_ENABLE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_RW_GRID_METER_CT_RATE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_RW_GRID_METER_CT_RATE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1");
 		rs->registerCount = 2;
 		break;
 	}
@@ -132,7 +129,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1");
 		rs->registerCount = 2;
 		break;
 	}
@@ -140,56 +136,48 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_GRID_METER_R_VOLTAGE_OF_A_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_VOLTAGE_OF_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_VOLTAGE_OF_B_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_VOLTAGE_OF_B_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_VOLTAGE_OF_C_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_VOLTAGE_OF_C_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_CURRENT_OF_A_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_CURRENT_OF_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_CURRENT_OF_B_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_CURRENT_OF_B_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_CURRENT_OF_C_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_CURRENT_OF_C_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_FREQUENCY:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_FREQUENCY");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_ACTIVE_POWER_OF_A_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_ACTIVE_POWER_OF_A_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
@@ -197,7 +185,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_GRID_METER_R_ACTIVE_POWER_OF_B_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_ACTIVE_POWER_OF_B_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
@@ -205,7 +192,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_GRID_METER_R_ACTIVE_POWER_OF_C_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_ACTIVE_POWER_OF_C_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
@@ -213,331 +199,264 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_REACTIVE_POWER_OF_A_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_REACTIVE_POWER_OF_A_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_REACTIVE_POWER_OF_B_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_REACTIVE_POWER_OF_B_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_REACTIVE_POWER_OF_C_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_REACTIVE_POWER_OF_C_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_TOTAL_REACTIVE_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_TOTAL_REACTIVE_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_APPARENT_POWER_OF_A_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_APPARENT_POWER_OF_A_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_APPARENT_POWER_OF_B_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_APPARENT_POWER_OF_B_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_APPARENT_POWER_OF_C_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_APPARENT_POWER_OF_C_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_TOTAL_APPARENT_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_TOTAL_APPARENT_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_GRID_METER_R_POWER_FACTOR_OF_A_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_POWER_FACTOR_OF_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_POWER_FACTOR_OF_B_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_POWER_FACTOR_OF_B_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_POWER_FACTOR_OF_C_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_POWER_FACTOR_OF_C_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_GRID_METER_R_TOTAL_POWER_FACTOR:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_GRID_METER_R_TOTAL_POWER_FACTOR");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_RW_PV_METER_CT_ENABLE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_RW_PV_METER_CT_ENABLE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_RW_PV_METER_CT_RATE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_RW_PV_METER_CT_RATE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_VOLTAGE_OF_A_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_VOLTAGE_OF_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_VOLTAGE_OF_B_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_VOLTAGE_OF_B_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_VOLTAGE_OF_C_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_VOLTAGE_OF_C_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_CURRENT_OF_A_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_CURRENT_OF_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_CURRENT_OF_B_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_CURRENT_OF_B_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_CURRENT_OF_C_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_CURRENT_OF_C_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_FREQUENCY:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_FREQUENCY");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_ACTIVE_POWER_OF_A_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_ACTIVE_POWER_OF_A_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_ACTIVE_POWER_OF_B_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_ACTIVE_POWER_OF_B_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_ACTIVE_POWER_OF_C_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_ACTIVE_POWER_OF_C_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_TOTAL_ACTIVE_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_TOTAL_ACTIVE_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_REACTIVE_POWER_OF_A_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_REACTIVE_POWER_OF_A_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_REACTIVE_POWER_OF_B_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_REACTIVE_POWER_OF_B_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_REACTIVE_POWER_OF_C_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_REACTIVE_POWER_OF_C_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_TOTAL_REACTIVE_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_TOTAL_REACTIVE_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_APPARENT_POWER_OF_A_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_APPARENT_POWER_OF_A_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_APPARENT_POWER_OF_B_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_APPARENT_POWER_OF_B_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_APPARENT_POWER_OF_C_PHASE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_APPARENT_POWER_OF_C_PHASE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_TOTAL_APPARENT_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_PV_METER_R_TOTAL_APPARENT_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_PV_METER_R_POWER_FACTOR_OF_A_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_POWER_FACTOR_OF_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_POWER_FACTOR_OF_B_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_POWER_FACTOR_OF_B_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_POWER_FACTOR_OF_C_PHASE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_POWER_FACTOR_OF_C_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_PV_METER_R_TOTAL_POWER_FACTOR:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_PV_METER_R_TOTAL_POWER_FACTOR");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_STATUS:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_STATUS");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -545,7 +464,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_BATTERY_HOME_R_RELAY_STATUS:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_RELAY_STATUS");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -553,154 +471,132 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_MIN_CELL_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_MIN_CELL_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_MAX_CELL_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_MAX_CELL_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_TEMPERATURE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_TEMPERATURE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_TEMPERATURE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_CELL_ID_OF_MIN_CELL_TEMPERATURE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_MIN_CELL_TEMPERATURE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_MIN_CELL_TEMPERATURE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_TEMPERATURE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_TEMPERATURE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_TEMPERATURE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_CELL_ID_OF_MAX_CELL_TEMPERATURE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_MAX_CHARGE_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_MAX_CHARGE_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_MAX_DISCHARGE_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_MAX_DISCHARGE_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_CHARGE_CUT_OFF_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_CHARGE_CUT_OFF_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_DISCHARGE_CUT_OFF_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_DISCHARGE_CUT_OFF_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BMU_SOFTWARE_VERSION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BMU_SOFTWARE_VERSION");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_LMU_SOFTWARE_VERSION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_LMU_SOFTWARE_VERSION");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_ISO_SOFTWARE_VERSION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_ISO_SOFTWARE_VERSION");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_NUMBER:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_NUMBER");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_CAPACITY:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_CAPACITY");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_TYPE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_TYPE");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -708,104 +604,85 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_BATTERY_HOME_R_BATTERY_SOH:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_SOH");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_1");
 		rs->registerCount = 2;
 		rs->hasLookup = true;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_ENERGY_CHARGE_FROM_GRID_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_ENERGY_CHARGE_FROM_GRID_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_POWER:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_POWER");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_REMAINING_TIME:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_REMAINING_TIME");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_CHARGE_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_CHARGE_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_DISCHARGE_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_DISCHARGE_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_REMAINING_CHARGE_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_REMAINING_CHARGE_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_REMAINING_DISCHARGE_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_REMAINING_DISCHARGE_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_MAX_CHARGE_POWER:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_MAX_CHARGE_POWER");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_MAX_DISCHARGE_POWER:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_MAX_DISCHARGE_POWER");
 		rs->registerCount = 1;
 		break;
 	}
@@ -813,7 +690,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->hasLookup = true;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_RW_BATTERY_MOS_CONTROL");
 		rs->registerCount = 1;
 		break;
 	}
@@ -821,451 +697,360 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->hasLookup = true;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_SOC_CALIBRATION");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_SINGLE_CUT_ERROR_CODE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_SINGLE_CUT_ERROR_CODE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_1_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_1_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_2_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_2_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_3_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_3_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_4_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_4_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_5_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_5_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_FAULT_6_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_FAULT_6_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_1_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_1_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_2_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_2_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_3_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_3_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_4_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_4_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_5_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_5_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_BATTERY_HOME_R_BATTERY_WARNING_6_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_BATTERY_HOME_R_BATTERY_WARNING_6_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_VOLTAGE_L1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_VOLTAGE_L1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_VOLTAGE_L2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_VOLTAGE_L2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_VOLTAGE_L3:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_VOLTAGE_L3");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_CURRENT_L1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_CURRENT_L1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_CURRENT_L2:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_CURRENT_L2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_CURRENT_L3:
 	{
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_CURRENT_L3");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_POWER_L1_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_POWER_L1_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_POWER_L2_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_POWER_L2_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_POWER_L3_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_POWER_L3_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_POWER_TOTAL_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_POWER_TOTAL_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L3:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_VOLTAGE_L3");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_BACKUP_CURRENT_L1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_CURRENT_L1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_BACKUP_CURRENT_L2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_CURRENT_L2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_BACKUP_CURRENT_L3:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_CURRENT_L3");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_BACKUP_POWER_L1_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_POWER_L1_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_BACKUP_POWER_L2_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_POWER_L2_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_BACKUP_POWER_L3_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_POWER_L3_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_BACKUP_POWER_TOTAL_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_BACKUP_POWER_TOTAL_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_FREQUENCY:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_FREQUENCY");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV1_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV1_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV1_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV1_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV1_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV1_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_PV2_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV2_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV2_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV2_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV2_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV2_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_PV3_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV3_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV3_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV3_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV3_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV3_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_PV4_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV4_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV4_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV4_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV4_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV4_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_PV5_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV5_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV5_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV5_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV5_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV5_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_PV6_VOLTAGE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV6_VOLTAGE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV6_CURRENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV6_CURRENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_PV6_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_PV6_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_INVERTER_TEMP:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_INVERTER_TEMP");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_INVERTER_HOME_R_INVERTER_WARNING_1_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_INVERTER_WARNING_1_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_INVERTER_WARNING_2_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_INVERTER_WARNING_2_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_INVERTER_FAULT_1_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_INVERTER_FAULT_1_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_INVERTER_FAULT_2_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_INVERTER_FAULT_2_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_INVERTER_TOTAL_PV_ENERGY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_INVERTER_TOTAL_PV_ENERGY_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_INVERTER_HOME_R_WORKING_MODE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_INVERTER_HOME_R_WORKING_MODE");
 		rs->hasLookup = true;
 		rs->registerCount = 1;
 		break;
@@ -1273,125 +1058,90 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1:
 	{
 		rs->returnDataType = modbusReturnDataType::character;
-		strcpy(rs->mqttName, "REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1");
 		rs->registerCount = 5;
 		break;
 	}
-
-
-
-
 	case REG_INVERTER_INFO_R_SLAVE_SOFTWARE_VERSION_1:
 	{
 		rs->returnDataType = modbusReturnDataType::character;
-		strcpy(rs->mqttName, "REG_INVERTER_INFO_R_SLAVE_SOFTWARE_VERSION_1");
 		rs->registerCount = 5;
 		break;
 	}
-
-
-
-
 	case REG_INVERTER_INFO_R_SERIAL_NUMBER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::character;
-		strcpy(rs->mqttName, "REG_INVERTER_INFO_R_SERIAL_NUMBER_1");
 		rs->registerCount = 10;
 		break;
 	}
-
-
-
-
-
-
-
-
-
 	case REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_INFO_RW_SYSTEM_TIME_DAY_HOUR:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_RW_SYSTEM_TIME_DAY_HOUR");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_INFO_RW_SYSTEM_TIME_MINUTE_SECOND:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_RW_SYSTEM_TIME_MINUTE_SECOND");
 		rs->registerCount = 1;
 		break;
 	}
-
 	case REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2:
 	{
 		rs->returnDataType = modbusReturnDataType::character;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2");
 		rs->registerCount = 8;
 		break;
 	}
 	case REG_SYSTEM_INFO_R_EMS_VERSION_HIGH:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_R_EMS_VERSION_HIGH");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_INFO_R_EMS_VERSION_MIDDLE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_R_EMS_VERSION_MIDDLE");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_INFO_R_EMS_VERSION_LOW:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_R_EMS_VERSION_LOW");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_INFO_R_PROTOCOL_VERSION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_INFO_R_PROTOCOL_VERSION");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_MAX_FEED_INTO_GRID_PERCENT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_MAX_FEED_INTO_GRID_PERCENT");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_PV_CAPACITY_STORAGE_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_PV_CAPACITY_STORAGE_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_SYSTEM_CONFIG_RW_PV_CAPACITY_OF_GRID_INVERTER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_PV_CAPACITY_OF_GRID_INVERTER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_SYSTEM_CONFIG_RW_SYSTEM_MODE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_SYSTEM_MODE");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1399,7 +1149,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_SYSTEM_CONFIG_RW_METER_CT_SELECT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_METER_CT_SELECT");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1407,7 +1156,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_SYSTEM_CONFIG_RW_BATTERY_READY:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_BATTERY_READY");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1415,7 +1163,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_SYSTEM_CONFIG_RW_IP_METHOD:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_IP_METHOD");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1423,41 +1170,33 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_SYSTEM_CONFIG_RW_LOCAL_IP_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_LOCAL_IP_1");
 		rs->registerCount = 2;
 		rs->hasLookup = true; // Using this to treat output as string
 		break;
 	}
-
 	case REG_SYSTEM_CONFIG_RW_SUBNET_MASK_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_SUBNET_MASK_1");
 		rs->registerCount = 2;
 		rs->hasLookup = true; // Using this to treat output as string
 		break;
 	}
-
 	case REG_SYSTEM_CONFIG_RW_GATEWAY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_GATEWAY_1");
 		rs->registerCount = 2;
 		rs->hasLookup = true; // Using this to treat output as string
 		break;
 	}
-
 	case REG_SYSTEM_CONFIG_RW_MODBUS_ADDRESS:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_MODBUS_ADDRESS");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_MODBUS_BAUD_RATE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SYSTEM_CONFIG_RW_MODBUS_BAUD_RATE");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1465,7 +1204,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_TIMING_RW_TIME_PERIOD_CONTROL_FLAG:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_PERIOD_CONTROL_FLAG");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1473,77 +1211,66 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_TIMING_RW_UPS_RESERVE_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_UPS_RESERVE_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_CHARGE_CUT_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_CHARGE_CUT_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_CHARGE_START_TIME_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_CHARGE_START_TIME_1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_CHARGE_START_TIME_2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_CHARGE_START_TIME_2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_DISPATCH_RW_DISPATCH_START:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_DISPATCH_RW_DISPATCH_START");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1551,23 +1278,18 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_DISPATCH_RW_ACTIVE_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_DISPATCH_RW_ACTIVE_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_DISPATCH_RW_REACTIVE_POWER_1:
 	{
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_DISPATCH_RW_REACTIVE_POWER_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_DISPATCH_RW_DISPATCH_MODE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_DISPATCH_RW_DISPATCH_MODE");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
@@ -1575,106 +1297,81 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_DISPATCH_RW_DISPATCH_SOC:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_DISPATCH_RW_DISPATCH_SOC");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_DISPATCH_RW_DISPATCH_TIME_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_DISPATCH_RW_DISPATCH_TIME_1");
 		rs->registerCount = 2;
 		break;
 	}
-
-
-
 	case REG_AUXILIARY_R_EMS_DI0:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_AUXILIARY_R_EMS_DI0");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_AUXILIARY_R_EMS_DI1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_AUXILIARY_R_EMS_DI1");
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_SYSTEM_OP_R_PV_INVERTER_ENERGY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_OP_R_PV_INVERTER_ENERGY_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_SYSTEM_OP_R_SYSTEM_FAULT_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
-		strcpy(rs->mqttName, "REG_SYSTEM_OP_R_SYSTEM_FAULT_1");
 		rs->registerCount = 2;
 		rs->hasLookup = true;
 		break;
 	}
-
 	case REG_SAFETY_TEST_RW_GRID_REGULATION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		strcpy(rs->mqttName, "REG_SAFETY_TEST_RW_GRID_REGULATION");
 		rs->registerCount = 1;
 		rs->hasLookup = true;
 		break;
 	}
-
 	case REG_CUSTOM_SYSTEM_DATE_TIME:
 	{
 		// Custom, going to do the date/time formatting, so swap back to register for YEAR/MONTH and pull 3 bytes.
 		rs->returnDataType = modbusReturnDataType::character;
-		strcpy(rs->mqttName, "REG_CUSTOM_SYSTEM_DATE_TIME");
 		rs->registerCount = 3;
 		break;
 	}
-
 	case REG_CUSTOM_LOAD:
 	{
 		// Custom, derive a load using a combination of registers to substitute lack of load from a data register
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_CUSTOM_LOAD");
 		rs->registerCount = 2;
 		break;
 	}
-
 	case REG_CUSTOM_GRID_CURRENT_A_PHASE:
 	{
 		// Custom, derive a grid current using grid power / grid voltage, seeing as REG_GRID_METER_R_CURRENT_OF_A_PHASE is always zero for me
 		rs->returnDataType = modbusReturnDataType::signedShort;
-		strcpy(rs->mqttName, "REG_CUSTOM_GRID_CURRENT_A_PHASE");
 		rs->registerCount = 1;
 		break;
 	}
-
 	case REG_CUSTOM_TOTAL_SOLAR_POWER:
 	{
 		// Custom, derive a safe total solar power using figures from either PV CT or in the case of hybrids, from the individual PV strings too.
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		strcpy(rs->mqttName, "REG_CUSTOM_TOTAL_SOLAR_POWER");
 		rs->registerCount = 2;
 		break;
 	}
-
-	
-
 	default:
 	{
 		// Not a valid register we have written code to handle, do something here to prevent the send
@@ -2744,6 +2441,11 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 				strcpy(rs->dataValueFormatted, BATTERY_TYPE_SMILE_BAT_13_7P_DESC);
 				break;
 			}
+			case BATTERY_TYPE_SMILE_BAT_8_2_PHA:
+			{
+				strcpy(rs->dataValueFormatted, BATTERY_TYPE_SMILE_BAT_8_2_PHA_DESC);
+				break;
+			}
 			default:
 			{
 				strcpy(rs->dataValueFormatted, "Unknown");
@@ -2773,7 +2475,9 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// <<Note4 - BATTERY ERROR LOOKUP>>
-			if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
+			if (rs->unsignedIntValue == 0)
+				strcpy(rs->dataValueFormatted, "0");
+			else if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
 				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_0);
 			else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
 				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_1);
@@ -4020,7 +3724,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Short
 			// 0.4%/bit, 95=SOC of 38%
 			// Reduce it back to a percent
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue * DISPATCH_SOC_MULTIPLIER);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * DISPATCH_SOC_MULTIPLIER);
 			break;
 		}
 		case REG_DISPATCH_RW_DISPATCH_TIME_1:
@@ -4054,7 +3758,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 0.1kWh/bit
 			// Zero for me.  Multiplier is *presumably* wrong in documentation, see below
 			// ###HERE###
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * TOTAL_ENERGY_MUTLIPLIER);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * TOTAL_ENERGY_MULTIPLIER);
 			break;
 		}
 
@@ -4064,7 +3768,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 0.1kWh/bit
 			// My value was 308695, and according to web interface my total PV is 3086kWh, so multiplier seems wrong
 			// ###HERE###
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * TOTAL_ENERGY_MUTLIPLIER);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * TOTAL_ENERGY_MULTIPLIER);
 			break;
 		}
 
