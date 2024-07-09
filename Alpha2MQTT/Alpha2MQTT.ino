@@ -1700,34 +1700,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 {
     modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
     modbusRequestAndResponse response;
-
-#define DISABLE_JSON
-#ifndef DISABLE_JSON
-    // Variables for new JSON parser
-    int iSegNameCounter;
-    int iSegValueCounter;
-    int iPairNameCounter;
-    int iPairValueCounter;
-    int iCleanCounter;
-    int iCounter;
-
-    // All are emptied on creation as new arrays will just tend to have garbage in which would be recognised as actual content.
-    char pairNameRaw[32] = "";
-    char pairNameClean[32] = "";
-    char pairValueRaw[32] = "";
-    char pairValueClean[32] = "";
-    char registerAddress[32] = "";
-    char dataBytes[32] = "";
-    char value[32] = "";
-    char watts[32] = "";
-    char duration[32] = "";
-    char socPercent[32] = "";
-    char startPos[32] = "";
-    char endPos[32] = "";
-#endif // ! DISABLE_JSON
-
     char mqttIncomingPayload[128] = ""; // Should be enough to cover request JSON.
-
     mqttState *mqttEntity = NULL;
 
 #ifdef DEBUG
@@ -1786,151 +1759,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	return; // We won't be doing anything if no payload
     }
 
-#ifndef DISABLE_JSON
-    // Rudimentary JSON parser here, saves on using a library
-    // Go through character by character
-    for (iCounter = 0; iCounter < length; iCounter++) {
-	// Find a colon
-	if (mqttIncomingPayload[iCounter] == ':') {
-	    // Everything to left is name until reached the start, a comma or a left brace.
-	    for (iSegNameCounter = iCounter - 1; iSegNameCounter >= 0; iSegNameCounter--) {
-		if (mqttIncomingPayload[iSegNameCounter] == ',' || mqttIncomingPayload[iSegNameCounter] == '{') {
-		    iSegNameCounter++;
-		    break;
-		}
-	    }
-	    if (iSegNameCounter < 0) {
-		// If went beyond the start, correct
-		iSegNameCounter = 0;
-	    }
-	    // Segment name is now from the following character until before the colon
-	    iPairNameCounter = 0;
-	    for (int x = iSegNameCounter; x < iCounter; x++) {
-		pairNameRaw[iPairNameCounter] = mqttIncomingPayload[x];
-		iPairNameCounter++;
-	    }
-	    pairNameRaw[iPairNameCounter] = '\0';
-
-	    // Everything to right is value until reached the end, a comma or a right brace.
-	    for (iSegValueCounter = iCounter + 1; iSegValueCounter < length; iSegValueCounter++) {
-		if (mqttIncomingPayload[iSegValueCounter] == ',' || mqttIncomingPayload[iSegValueCounter] == '}') {
-		    iSegValueCounter--;
-		    break;
-		}
-	    }
-	    // Correct if went beyond the end
-	    if (iSegValueCounter >= length) {
-		// If went beyond end, correct
-		iSegValueCounter = length - 1;
-	    }
-	    // Segment value is now from the after the colon until the found character
-	    iPairValueCounter = 0;
-	    for (int x = iCounter + 1; x <= iSegValueCounter; x++) {
-		pairValueRaw[iPairValueCounter] = mqttIncomingPayload[x];
-		iPairValueCounter++;
-	    }
-	    pairValueRaw[iPairValueCounter] = '\0';
-
-	    // Transfer to a cleansed copy, without unwanted chars
-	    iPairNameCounter = 0;
-	    iCleanCounter = 0;
-	    while (pairNameRaw[iCleanCounter] != 0) {
-		// Allow alpha numeric, upper case and lower case
-		if ((pairNameRaw[iCleanCounter] >= 'a' && pairNameRaw[iCleanCounter] <= 'z') || (pairNameRaw[iCleanCounter] >= 'A' && pairNameRaw[iCleanCounter] <= 'Z') || (pairNameRaw[iCleanCounter] >= '0' && pairNameRaw[iCleanCounter] <= '9')) {
-		    // Transfer Over
-		    pairNameClean[iPairNameCounter] = pairNameRaw[iCleanCounter];
-		    iPairNameCounter++;
-		}
-		iCleanCounter++;
-	    }
-	    pairNameClean[iPairNameCounter] = '\0';
-
-	    iPairValueCounter = 0;
-	    iCleanCounter = 0;
-	    while (pairValueRaw[iCleanCounter] != 0) {
-		// Allow a minus, x (for hex), and 0-9, and a-f A-F for hex
-		if ((pairValueRaw[iCleanCounter] == '-' || pairValueRaw[iCleanCounter] == 'x' || (pairValueRaw[iCleanCounter] >= '0' && pairValueRaw[iCleanCounter] <= '9') || (pairValueRaw[iCleanCounter] >= 'A' && pairValueRaw[iCleanCounter] <= 'F')) || (pairValueRaw[iCleanCounter] >= 'a' && pairValueRaw[iCleanCounter] <= 'f')) {
-		    // Transfer Over
-		    pairValueClean[iPairValueCounter] = pairValueRaw[iCleanCounter];
-		    iPairValueCounter++;
-		}
-		iCleanCounter++;
-	    }
-	    pairValueClean[iPairValueCounter] = '\0';
-#ifdef DEBUG
-	    snprintf(_debugOutput, sizeof(_debugOutput), "Got a cleaned JSON parameter of '%s', value '%s'", pairNameClean, pairValueClean);
-	    Serial.println(_debugOutput);
-#endif
-
-	    if (strcmp(pairNameClean, "registerAddress") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as registerAddress");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(registerAddress, pairValueClean);
-	    } else if (strcmp(pairNameClean, "dataBytes") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as dataBytes");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(dataBytes, pairValueClean);
-	    } else if (strcmp(pairNameClean, "value") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as value");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(value, pairValueClean);
-	    } else if (strcmp(pairNameClean, "watts") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as watts");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(watts, pairValueClean);
-	    } else if (strcmp(pairNameClean, "duration") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as duration");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(duration, pairValueClean);
-	    } else if (strcmp(pairNameClean, "socPercent") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as socPercent");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(socPercent, pairValueClean);
-	    } else if (strcmp(pairNameClean, "start") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as start");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(startPos, pairValueClean);
-	    } else if (strcmp(pairNameClean, "end") == 0) {
-#ifdef DEBUG
-		sprintf(_debugOutput, "This was handled as end");
-		Serial.println(_debugOutput);
-#endif
-		strcpy(endPos, pairValueClean);
-	    }
-	}
-    }
-#endif // ! DISABLE_JSON
-
     // Update system!!!
-#ifndef DISABLE_JSON
-    if (mqttEntity->entityId == mqttEntityId::entityErrors) {
-	if (!*value) {
-	    badCallbacks++;
-#ifdef DEBUG
-	    sprintf(_debugOutput, "Trying to writeErrors without a value!");
-	    Serial.println(_debugOutput);
-#endif
-	} else {
-	    int32_t  singleInt32;
-	    singleInt32 = strtol(value, NULL, 10);
-	    result = dave_writeRegisterInt(mqttEntity, singleInt32, &response);
-	    // DAVE - handle error
-	}
-#else // ! DISABLE_JSON
     {
 	int32_t  singleInt32;
 	char *endPtr = NULL;
@@ -1972,7 +1801,6 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 #endif
 	    break;
 	}
-#endif // ! DISABLE_JSON
     }
 
     // Send (hopefully) updated state.  If we failed to update, sender should notice value not changing.
