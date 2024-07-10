@@ -1020,6 +1020,7 @@ enum mqttEntityId {
     entityErrors,
     entityVersion,
     entityRSSI,
+    entityBSSID,
     entityBatSoc,
     entityBatPwr,
     entityBatEnergyCharge,
@@ -1069,5 +1070,7 @@ struct mqttState
     bool subscribe;
     homeAssistantClass haClass;
 };
+
+void getDispatchModeDesc(char *dest, uint16_t mode);
 
 #endif // ! _Definitions_h

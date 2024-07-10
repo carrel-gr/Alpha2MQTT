@@ -3663,61 +3663,8 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// <<Note7 - DISPATCH MODE LOOKUP>>
-			switch (rs->unsignedShortValue)
-			{
-			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC);
-				break;
-			}
-			case DISPATCH_MODE_ECO_MODE:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_ECO_MODE_DESC);
-				break;
-			}
-			case DISPATCH_MODE_FCAS_MODE:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_FCAS_MODE_DESC);
-				break;
-			}
-			case DISPATCH_MODE_LOAD_FOLLOWING:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_LOAD_FOLLOWING_DESC);
-				break;
-			}
-			case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC);
-				break;
-			}
-			case DISPATCH_MODE_NORMAL_MODE:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_NORMAL_MODE_DESC);
-				break;
-			}
-			case DISPATCH_MODE_OPTIMISE_CONSUMPTION:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC);
-				break;
-			}
-			case DISPATCH_MODE_PV_POWER_SETTING:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_PV_POWER_SETTING_DESC);
-				break;
-			}
-			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
-				break;
-			}
-			default:
-			{
-				strcpy(rs->dataValueFormatted, "Unknown");
-				break;
-			}
-			}
+			getDispatchModeDesc(rs->dataValueFormatted, rs->unsignedShortValue);
 			break;
-
 		}
 		case REG_DISPATCH_RW_DISPATCH_SOC:
 		{
