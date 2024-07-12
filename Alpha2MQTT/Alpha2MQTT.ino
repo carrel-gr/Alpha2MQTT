@@ -29,7 +29,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.12";
+char _version[6] = "v2.15";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -38,14 +38,15 @@ char statusTopic[128];
 // WiFi parameters
 WiFiClient _wifi;
 #if defined MP_ESP8266
-#define WIFI_MAX_POWER 20.5
-#define WIFI_MIN_POWER 12
-float wifiPower = WIFI_MAX_POWER;
+#define WIFI_POWER_MAX 20.5
+#define WIFI_POWER_MIN 12
+#define WIFI_POWER_DECREMENT .25
+float wifiPower = WIFI_MAX_POWER + WIFI_POWER_DECREMENT;  // Will decrement once before setting
 #define WIFI_CONNECTED WiFi.isConnected()
 #else // MP_ESP8266
 #define WIFI_CONNECTED 1
+wifi_power_t wifiPower = WIFI_POWER_11dBm; // Will bump to max before setting
 #endif // MP_ESP8266
-uint32_t wifiReconnects = 0;
 
 // MQTT parameters
 PubSubClient _mqtt(_wifi);
@@ -74,11 +75,13 @@ RegisterHandler* _registerHandler;
 // Fixed char array for messages to the serial port
 char _debugOutput[100];
 
+uint32_t wifiReconnects = 0;
 uint32_t receivedCallbacks = 0;
 uint32_t unknownCallbacks = 0;
 uint32_t badCallbacks = 0;
 int32_t regNumberToRead = -1;
 uint32_t daveErrorCode = 0;
+uint32_t rs485Errors = 0;
 #ifdef DEBUG_NO_RS485
 int16_t dispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
 char dispatchModeDesc[32] = DISPATCH_MODE_LOAD_FOLLOWING_DESC;
@@ -95,8 +98,10 @@ static struct mqttState _mqttAllEntities[] PROGMEM =
 #endif
     { mqttEntityId::entityCallbacks,          "REG_DAVE_CALLBACKS",   mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityErrors,             "REG_DAVE_ERRORS",      mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityRs485Errors,        "A2M_RS485_Errors",     mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityRSSI,               "A2M_RSSI",             mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityBSSID,              "A2M_BSSID",            mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityTxPower,            "A2M_TX_Power",         mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityVersion,            "A2M_version",          mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassBattery },
     { mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
@@ -260,6 +265,7 @@ void setup()
 	    sprintf(_debugOutput, "Baud Rate Checker Problem: %s", response.statusMqttMessage);
 	    Serial.println(_debugOutput);
 #endif
+	    rs485Errors++;
 	    updateOLED(false, "Test Baud", baudRateString, response.displayMessage);
 
 	    // Delay a while before trying the next
@@ -356,41 +362,65 @@ setupWifi(bool initialConnect)
     Serial.println(_debugOutput);
 #endif
 
-    if (!initialConnect) {
-	WiFi.disconnect();
-    }
-
-#if defined MP_ESP8266
-    // Set up in Station Mode - Will be connecting to an access point
-    WiFi.mode(WIFI_STA);
-    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
-
-    // Set the hostname for this Arduino
-    WiFi.hostname(DEVICE_NAME);
-#endif
-
-    // And connect to the details defined at the top
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    delay(250);
 
     // And continually try to connect to WiFi.
     // If it doesn't, the device will just wait here before continuing
-    for (int tries = 1; !WIFI_CONNECTED || WiFi.status() != WL_CONNECTED; tries++) {
+    for (int tries = 0; !WIFI_CONNECTED || WiFi.status() != WL_CONNECTED; tries++) {
 	snprintf(line3, sizeof(line3), "WiFi %d ...", tries);
 
+	if (tries == 5000) {
+	    ESP.restart();
+	}
+
+	if (tries % 50 == 0) {
+	    WiFi.disconnect();
+
+	    // Set up in Station Mode - Will be connecting to an access point
+	    WiFi.mode(WIFI_STA);
+	    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+	    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+
 #if defined MP_ESP8266
-	if (tries % 25 == 0) {
-	    wifiPower -= .25;
-	    if (wifiPower < WIFI_MIN_POWER) {
-		wifiPower = WIFI_MAX_POWER;
+	    wifiPower -= WIFI_POWER_DECREMENT;
+	    if (wifiPower < WIFI_POWER_MIN) {
+		wifiPower = WIFI_POWER_MAX;
 	    }
 	    WiFi.setOutputPower(wifiPower);
-	}
-	snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
+	    snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
 #else
-	strcpy(line4, "");
+	    switch (wifiPower) {
+	    case WIFI_POWER_19_5dBm:
+		wifiPower = WIFI_POWER_19dBm;
+		break;
+	    case WIFI_POWER_19dBm:
+		wifiPower = WIFI_POWER_18_5dBm;
+		break;
+	    case WIFI_POWER_18_5dBm:
+		wifiPower = WIFI_POWER_17dBm;
+		break;
+	    case WIFI_POWER_17dBm:
+		wifiPower = WIFI_POWER_15dBm;
+		break;
+	    case WIFI_POWER_15dBm:
+		wifiPower = WIFI_POWER_13dBm;
+		break;
+	    case WIFI_POWER_13dBm:
+		wifiPower = WIFI_POWER_11dBm;
+		break;
+	    case WIFI_POWER_11dBm:
+	    default:
+		wifiPower = WIFI_POWER_19_5dBm;
+		break;
+	    }
+	    WiFi.setTxPower(wifiPower);
+	    snprintf(line4, sizeof(line4), "TX: %0.01fdBm", wifiPower / 4.0f);
 #endif
+	    // Set the hostname for this Arduino
+	    WiFi.hostname(DEVICE_NAME);
+
+	    // And connect to the details defined at the top
+	    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+	}
 
 	if (initialConnect) {
 	    updateOLED(false, "Connecting", line3, line4);
@@ -547,6 +577,7 @@ getSerialNumber()
     while ((result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) ||
 	   (strlen(response.dataValueFormatted) < 15)) {
 	tries++;
+	rs485Errors++;
 	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
 	updateOLED(false, "Alpha sys", "not known", oledLine4);
 	delay(1000);
@@ -564,6 +595,7 @@ getSerialNumber()
     // Loop forever until we get this!
     while (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	tries++;
+	rs485Errors++;
 	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
 	updateOLED(false, "Bat type", "not known", oledLine4);
 	delay(1000);
@@ -637,6 +669,7 @@ updateRunstate()
 	request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    strcpy(line2, "DS Err");
+	    rs485Errors++;
 	} else {
 	    if (response.unsignedShortValue != DISPATCH_START_START) {
 		strcpy(line2, "Stopped");
@@ -645,6 +678,7 @@ updateRunstate()
 		request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
 		if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 		    strcpy(line2, "Mode Err");
+		    rs485Errors++;
 		} else {
 		    switch (response.unsignedShortValue) {
 		    case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
@@ -686,6 +720,7 @@ updateRunstate()
 		    request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			strcpy(line2, "AP Err");
+			rs485Errors++;
 		    } else {
 			if (response.signedIntValue < 32000) {
 			    dAction = "Charge";
@@ -704,19 +739,21 @@ updateRunstate()
 	request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, &response);
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    strcpy(line3, "Bat Err");
+	    rs485Errors++;
 	} else {
 	    int batPower = response.signedShortValue;
 
 	    request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
 	    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 		strcpy(line3, "SOC Err");
+		rs485Errors++;
 	    } else {
 		snprintf(line3, sizeof(line3), "Bat: %4dW  %0.02f%%", batPower, response.unsignedShortValue * 0.1);
 	    }
 	}
 #endif // DEBUG_NO_RS485
 
-	switch (loopCnt % 5) {
+	switch (loopCnt % 7) {
 	case 0:
 	    snprintf(line4, sizeof(line4), "Mem: %u", freeMemory());
 	    break;
@@ -731,6 +768,12 @@ updateRunstate()
 	    break;
 	case 4:
 	    snprintf(line4, sizeof(line4), "Bad CBs: %u", badCallbacks);
+	    break;
+	case 5:
+	    snprintf(line4, sizeof(line4), "RS485 Err: %u", rs485Errors);
+	    break;
+	case 6:
+	    snprintf(line4, sizeof(line4), "WiFi TX: %0.01fdBm", WiFi.getTxPower() / 4.0f);
 	    break;
 	default:
 	    snprintf(line4, sizeof(line4), "Code Error");
@@ -774,6 +817,7 @@ void updateRunstate()
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    // Use line3 (line 3) for errors
 	    strcpy(line3, "DS Err");
+	    rs485Errors++;
 	} else {
 	    if (response.unsignedShortValue != DISPATCH_START_START) {
 		strcpy(line2, "Stopped");
@@ -785,6 +829,7 @@ void updateRunstate()
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			// Use line3 (line 3) for errors
 			strcpy(line3, "Mode Err");
+			rs485Errors++;
 		    } else {
 			switch (response.unsignedShortValue) {
 			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
@@ -829,6 +874,7 @@ void updateRunstate()
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			// Use line3 (line 3) for errors
 			strcpy(line3, "AP Err");
+			rs485Errors++;
 		    } else {
 			if (response.signedIntValue < 32000) {
 			    strcpy(line2, "Charge");
@@ -851,6 +897,7 @@ void updateRunstate()
 		} else {
 		    // Use line3 (line 3) for errors
 		    strcpy(line3, "Bat Err");
+		    rs485Errors++;
 		}
 	    }
 
@@ -862,6 +909,7 @@ void updateRunstate()
 		} else {
 		    // Use line3 (line 3) for errors
 		    strcpy(line3, "SOC Err");
+		    rs485Errors++;
 		}
 	    }
 	} else {
@@ -1027,20 +1075,25 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		strcpy(rs->characterValue, "Invalid register");
 		sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-	    } else if ((result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) &&
-		       !strcmp(rs->dataValueFormatted, "Unknown")) {
-		switch (rs->returnDataType) {
-		case modbusReturnDataType::character:
-		    sprintf(rs->dataValueFormatted, "Unknown (%s)", rs->characterValue);
-		    break;
-		case modbusReturnDataType::signedInt:
-		case modbusReturnDataType::signedShort:
-		    sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedIntValue);
-		    break;
-		case modbusReturnDataType::unsignedInt:
-		case modbusReturnDataType::unsignedShort:
-		    sprintf(rs->dataValueFormatted, "Unknown (%u)", rs->unsignedShortValue);
-		    break;
+	    } else {
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		    if (!strcmp(rs->dataValueFormatted, "Unknown")) {
+			switch (rs->returnDataType) {
+			case modbusReturnDataType::character:
+			    sprintf(rs->dataValueFormatted, "Unknown (%s)", rs->characterValue);
+			    break;
+			case modbusReturnDataType::signedInt:
+			case modbusReturnDataType::signedShort:
+			    sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedIntValue);
+			    break;
+			case modbusReturnDataType::unsignedInt:
+			case modbusReturnDataType::unsignedShort:
+			    sprintf(rs->dataValueFormatted, "Unknown (%u)", rs->unsignedShortValue);
+			    break;
+			}
+		    }
+		} else {
+		    rs485Errors++;
 		}
 	    }
 	}
@@ -1232,6 +1285,13 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
+    case mqttEntityId::entityRs485Errors:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = rs485Errors;
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
 #ifdef DEBUG_FREEMEM
     case mqttEntityId::entityFreemem:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
@@ -1268,10 +1328,23 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
+    case mqttEntityId::entityTxPower:
+	rs->returnDataType = modbusReturnDataType::signedInt;
+	rs->signedIntValue = WiFi.getTxPower();
+	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_SIGNED_INT_DESC);
+	sprintf(rs->dataValueFormatted, "%0.1f", rs->signedIntValue / 4.0f);
+	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
     case mqttEntityId::entityUnknown:
 	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::notValidIncomingTopic;
 	break;
+    }
+
+    if ((result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) &&
+	(result != modbusRequestAndResponseStatusValues::notValidIncomingTopic)) {
+	rs485Errors++;
     }
     return result;
 }
@@ -1415,7 +1488,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	sprintf(stateAddition, "%s, \"device_class\": \"temperature\"", stateAddition);
 	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
 	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"°C\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+//	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
 	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
 	break;
     case homeAssistantClass::homeAssistantClassBox:
@@ -1426,7 +1499,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	break;
     case homeAssistantClass::homeAssistantClassSelect:
 	sprintf(stateAddition, "%s, \"device_class\": \"enum\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+//	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
 	break;
     }
     if (strlen(stateAddition) != 0) {
@@ -1494,10 +1567,14 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	break;
     case mqttEntityId::entityRSSI:
     case mqttEntityId::entityBSSID:
+    case mqttEntityId::entityTxPower:
 	sprintf(stateAddition, ", \"icon\": \"mdi:wifi\"");
 	break;
     case mqttEntityId::entityVersion:
 	sprintf(stateAddition, ", \"icon\": \"mdi:numeric\"");
+	break;
+    case mqttEntityId::entityRs485Errors:
+	sprintf(stateAddition, ", \"icon\": \"mdi:alert-decagram-outline\"");
 	break;
 #ifdef DEBUG_FREEMEM
     case mqttEntityId::entityFreemem:
@@ -1809,6 +1886,9 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 		socTarget = singleRegisterValueConverted;
 #else // DEBUG_NO_RS485
 		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, singleRegisterValueConverted, &response);
+		if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+		    rs485Errors++;
+		}
 #endif // DEBUG_NO_RS485
 		break;
 	    case mqttEntityId::entityRegNum:
@@ -1824,12 +1904,20 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 #else // DEBUG_NO_RS485
 		if (!strcmp(singleString, DISPATCH_START_STOP_DESC)) {
 		    result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_STOP, &response);
+		    if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+			rs485Errors++;
+		    }
 		} else {
 		    singleRegisterValueConverted = lookupDispatchMode(singleString);
 		    if (singleRegisterValueConverted != (uint16_t)-1) {
 			result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_MODE, singleRegisterValueConverted, &response);
 			if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
 			    result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_START, &response);
+			    if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+				rs485Errors++;
+			    }
+			} else {
+			    rs485Errors++;
 			}
 		    }
 		}

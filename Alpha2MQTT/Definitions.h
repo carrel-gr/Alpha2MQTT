@@ -1018,9 +1018,11 @@ enum mqttEntityId {
 #endif
     entityCallbacks,
     entityErrors,
+    entityRs485Errors,
     entityVersion,
     entityRSSI,
     entityBSSID,
+    entityTxPower,
     entityBatSoc,
     entityBatPwr,
     entityBatEnergyCharge,
