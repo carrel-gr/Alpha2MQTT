@@ -48,8 +48,11 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 #define DEBUG
-#define DEBUG_FREEMEM
-//#define DEBUG_NO_RS485
+#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
+#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
+#define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
+#define DEBUG_RS485	// Enable extra debug on display and via MQTT
+//#define DEBUG_NO_RS485	// Fake-out all RS485 comms
 //#define DEBUG_LEVEL2 // For serial flooding action
 //#define DEBUG_OUTPUT_TX_RX
 
@@ -1015,14 +1018,21 @@ struct modbusRequestAndResponse
 enum mqttEntityId {
 #ifdef DEBUG_FREEMEM
     entityFreemem,
-#endif
+#endif // DEBUG_FREEMEM
+#ifdef DEBUG_CALLBACKS
     entityCallbacks,
-    entityErrors,
-    entityRs485Errors,
-    entityVersion,
+#endif // DEBUG_CALLBACKS
+#ifdef DEBUG_WIFI
     entityRSSI,
     entityBSSID,
     entityTxPower,
+    entityWifiRecon,
+#endif // DEBUG_WIFI
+#ifdef DEBUG_RS485
+    entityRs485Errors,
+#endif // DEBUG_RS485
+    entityUptime,
+    entityVersion,
     entityBatSoc,
     entityBatPwr,
     entityBatEnergyCharge,
@@ -1058,6 +1068,7 @@ enum homeAssistantClass {
     homeAssistantClassVoltage,
     homeAssistantClassCurrent,
     homeAssistantClassTemp,
+    homeAssistantClassDuration,
     homeAssistantClassInfo,
     homeAssistantClassSelect,
     homeAssistantClassBox

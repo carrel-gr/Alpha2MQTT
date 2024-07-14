@@ -29,11 +29,12 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.15";
+char _version[6] = "v2.16";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
 char statusTopic[128];
+uint32_t uptimeSeconds = 0, uptimeSecondsSaved = 0;
 
 // WiFi parameters
 WiFiClient _wifi;
@@ -75,13 +76,18 @@ RegisterHandler* _registerHandler;
 // Fixed char array for messages to the serial port
 char _debugOutput[100];
 
+int32_t regNumberToRead = -1;
+#ifdef DEBUG_WIFI
 uint32_t wifiReconnects = 0;
+#endif // DEBUG_WIFI
+#ifdef DEBUG_CALLBACKS
 uint32_t receivedCallbacks = 0;
 uint32_t unknownCallbacks = 0;
 uint32_t badCallbacks = 0;
-int32_t regNumberToRead = -1;
-uint32_t daveErrorCode = 0;
+#endif // DEBUG_CALLBACKS
+#ifdef DEBUG_RS485
 uint32_t rs485Errors = 0;
+#endif // DEBUG_RS485
 #ifdef DEBUG_NO_RS485
 int16_t dispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
 char dispatchModeDesc[32] = DISPATCH_MODE_LOAD_FOLLOWING_DESC;
@@ -96,12 +102,19 @@ static struct mqttState _mqttAllEntities[] PROGMEM =
 #ifdef DEBUG_FREEMEM
     { mqttEntityId::entityFreemem,            "A2M_freemem",          mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
 #endif
-    { mqttEntityId::entityCallbacks,          "REG_DAVE_CALLBACKS",   mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
-    { mqttEntityId::entityErrors,             "REG_DAVE_ERRORS",      mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassInfo },
+#ifdef DEBUG_CALLBACKS
+    { mqttEntityId::entityCallbacks,          "A2M_Callbacks",        mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+#endif // DEBUG_CALLBACKS
+#ifdef DEBUG_RS485
     { mqttEntityId::entityRs485Errors,        "A2M_RS485_Errors",     mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+#endif // DEBUG_RS485
+#ifdef DEBUG_WIFI
     { mqttEntityId::entityRSSI,               "A2M_RSSI",             mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityBSSID,              "A2M_BSSID",            mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityTxPower,            "A2M_TX_Power",         mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityWifiRecon,          "A2M_reconnects",       mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+#endif // DEBUIG_WIFI
+    { mqttEntityId::entityUptime,             "A2M_uptime",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassDuration },
     { mqttEntityId::entityVersion,            "A2M_version",          mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassBattery },
     { mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
@@ -115,9 +128,9 @@ static struct mqttState _mqttAllEntities[] PROGMEM =
     { mqttEntityId::entityDispatchMode,       "Dispatch_Mode",        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassSelect },
     { mqttEntityId::entitySocTarget,          "SOC_Target"   ,        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassBox },
     { mqttEntityId::entityMaxCellTemp,        "Max_Cell_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
-    { mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityInverterTemp,       "Inverter_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
-    { mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
     { mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo }
 };
@@ -265,7 +278,9 @@ void setup()
 	    sprintf(_debugOutput, "Baud Rate Checker Problem: %s", response.statusMqttMessage);
 	    Serial.println(_debugOutput);
 #endif
+#ifdef DEBUG_RS485
 	    rs485Errors++;
+#endif // DEBUG_RS485
 	    updateOLED(false, "Test Baud", baudRateString, response.displayMessage);
 
 	    // Delay a while before trying the next
@@ -337,7 +352,18 @@ loop()
 }
 
 
+uint32_t
+getUptimeSeconds(void)
+{
+    uint32_t nowSeconds = millis() / 1000;
 
+    if (nowSeconds < uptimeSeconds) {
+	// We wrapped
+	uptimeSecondsSaved += uptimeSeconds;
+    }
+    uptimeSeconds = nowSeconds;
+    return uptimeSecondsSaved + uptimeSeconds;
+}
 
 
 /*
@@ -357,11 +383,14 @@ setupWifi(bool initialConnect)
 	sprintf(_debugOutput, "Connecting to %s", WIFI_SSID);
     } else {
 	sprintf(_debugOutput, "Reconnect to %s", WIFI_SSID);
-	wifiReconnects++;
     }
     Serial.println(_debugOutput);
 #endif
-
+#ifdef DEBUG_WIFI
+    if (!initialConnect) {
+	wifiReconnects++;
+    }
+#endif // DEBUG_WIFI
 
     // And continually try to connect to WiFi.
     // If it doesn't, the device will just wait here before continuing
@@ -577,7 +606,9 @@ getSerialNumber()
     while ((result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) ||
 	   (strlen(response.dataValueFormatted) < 15)) {
 	tries++;
+#ifdef DEBUG_RS485
 	rs485Errors++;
+#endif // DEBUG_RS485
 	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
 	updateOLED(false, "Alpha sys", "not known", oledLine4);
 	delay(1000);
@@ -595,7 +626,9 @@ getSerialNumber()
     // Loop forever until we get this!
     while (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	tries++;
+#ifdef DEBUG_RS485
 	rs485Errors++;
+#endif // DEBUG_RS485
 	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
 	updateOLED(false, "Bat type", "not known", oledLine4);
 	delay(1000);
@@ -644,7 +677,6 @@ void
 updateRunstate()
 {
     static unsigned long lastRun = 0;
-    static uint32_t loopCnt = 0;
     modbusRequestAndResponse response;
     modbusRequestAndResponseStatusValues request;
     char *dMode = NULL, *dAction = NULL;
@@ -669,7 +701,9 @@ updateRunstate()
 	request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    strcpy(line2, "DS Err");
+#ifdef DEBUG_RS485
 	    rs485Errors++;
+#endif // DEBUG_RS485
 	} else {
 	    if (response.unsignedShortValue != DISPATCH_START_START) {
 		strcpy(line2, "Stopped");
@@ -678,7 +712,9 @@ updateRunstate()
 		request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
 		if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 		    strcpy(line2, "Mode Err");
+#ifdef DEBUG_RS485
 		    rs485Errors++;
+#endif // DEBUG_RS485
 		} else {
 		    switch (response.unsignedShortValue) {
 		    case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
@@ -720,7 +756,9 @@ updateRunstate()
 		    request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			strcpy(line2, "AP Err");
+#ifdef DEBUG_RS485
 			rs485Errors++;
+#endif // DEBUG_RS485
 		    } else {
 			if (response.signedIntValue < 32000) {
 			    dAction = "Charge";
@@ -739,47 +777,70 @@ updateRunstate()
 	request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, &response);
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    strcpy(line3, "Bat Err");
+#ifdef DEBUG_RS485
 	    rs485Errors++;
+#endif // DEBUG_RS485
 	} else {
 	    int batPower = response.signedShortValue;
 
 	    request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
 	    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 		strcpy(line3, "SOC Err");
+#ifdef DEBUG_RS485
 		rs485Errors++;
+#endif // DEBUG_RS485
 	    } else {
 		snprintf(line3, sizeof(line3), "Bat: %4dW  %0.02f%%", batPower, response.unsignedShortValue * 0.1);
 	    }
 	}
 #endif // DEBUG_NO_RS485
 
-	switch (loopCnt % 7) {
-	case 0:
-	    snprintf(line4, sizeof(line4), "Mem: %u", freeMemory());
-	    break;
-	case 1:
-	    snprintf(line4, sizeof(line4), "WiFi recon: %d", wifiReconnects);
-	    break;
-	case 2:
-	    snprintf(line4, sizeof(line4), "Callbacks: %u", receivedCallbacks);
-	    break;
-	case 3:
-	    snprintf(line4, sizeof(line4), "Unk CBs: %u", unknownCallbacks);
-	    break;
-	case 4:
-	    snprintf(line4, sizeof(line4), "Bad CBs: %u", badCallbacks);
-	    break;
-	case 5:
-	    snprintf(line4, sizeof(line4), "RS485 Err: %u", rs485Errors);
-	    break;
-	case 6:
-	    snprintf(line4, sizeof(line4), "WiFi TX: %0.01fdBm", WiFi.getTxPower() / 4.0f);
-	    break;
-	default:
-	    snprintf(line4, sizeof(line4), "Code Error");
-	    break;
+	{
+	    static int debugIdx = 0;
+
+	    if (debugIdx < 0) {
+		snprintf(line4, sizeof(line4), "Code Error");
+		debugIdx = 0;
+	    } else if (debugIdx < 1) {
+		snprintf(line4, sizeof(line4), "Uptime: %u", getUptimeSeconds());
+		debugIdx = 1;
+#ifdef DEBUG_FREEMEM
+	    } else if (debugIdx < 2) {
+		snprintf(line4, sizeof(line4), "Mem: %u", freeMemory());
+		debugIdx = 2;
+#endif // DEBUG_FREEMEM
+#ifdef DEBUG_WIFI
+	    } else if (debugIdx < 3) {
+		snprintf(line4, sizeof(line4), "WiFi recon: %d", wifiReconnects);
+		debugIdx = 3;
+	    } else if (debugIdx < 4) {
+		snprintf(line4, sizeof(line4), "WiFi TX: %0.01fdBm", WiFi.getTxPower() / 4.0f);
+		debugIdx = 4;
+	    } else if (debugIdx < 5) {
+		snprintf(line4, sizeof(line4), "WiFi RSSI: %d", WiFi.RSSI());
+		debugIdx = 5;
+#endif // DEBUG_WIFI
+#ifdef DEBUG_CALLBACKS
+	    } else if (debugIdx < 6) {
+		snprintf(line4, sizeof(line4), "Callbacks: %u", receivedCallbacks);
+		debugIdx = 6;
+	    } else if (debugIdx < 7) {
+		snprintf(line4, sizeof(line4), "Unk CBs: %u", unknownCallbacks);
+		debugIdx = 7;
+	    } else if (debugIdx < 8) {
+		snprintf(line4, sizeof(line4), "Bad CBs: %u", badCallbacks);
+		debugIdx = 8;
+#endif // DEBUG_CALLBACKS
+#ifdef DEBUG_RS485
+	    } else if (debugIdx < 9) {
+		snprintf(line4, sizeof(line4), "RS485 Err: %u", rs485Errors);
+		debugIdx = 9;
+#endif // DEBUG_RS485
+	    } else { // Must be last
+		snprintf(line4, sizeof(line4), "Version: %s", _version);
+		debugIdx = 0;
+	    }
 	}
-	loopCnt++;
 
 	if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    updateOLED(false, line2, line3, line4);
@@ -817,7 +878,9 @@ void updateRunstate()
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    // Use line3 (line 3) for errors
 	    strcpy(line3, "DS Err");
+#ifdef DEBUG_RS485
 	    rs485Errors++;
+#endif // DEBUG_RS485
 	} else {
 	    if (response.unsignedShortValue != DISPATCH_START_START) {
 		strcpy(line2, "Stopped");
@@ -829,7 +892,9 @@ void updateRunstate()
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			// Use line3 (line 3) for errors
 			strcpy(line3, "Mode Err");
+#ifdef DEBUG_RS485
 			rs485Errors++;
+#endif // DEBUG_RS485
 		    } else {
 			switch (response.unsignedShortValue) {
 			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
@@ -874,7 +939,9 @@ void updateRunstate()
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			// Use line3 (line 3) for errors
 			strcpy(line3, "AP Err");
+#ifdef DEBUG_RS485
 			rs485Errors++;
+#endif // DEBUG_RS485
 		    } else {
 			if (response.signedIntValue < 32000) {
 			    strcpy(line2, "Charge");
@@ -897,7 +964,9 @@ void updateRunstate()
 		} else {
 		    // Use line3 (line 3) for errors
 		    strcpy(line3, "Bat Err");
+#ifdef DEBUG_RS485
 		    rs485Errors++;
+#endif // DEBUG_RS485
 		}
 	    }
 
@@ -909,7 +978,9 @@ void updateRunstate()
 		} else {
 		    // Use line3 (line 3) for errors
 		    strcpy(line3, "SOC Err");
+#ifdef DEBUG_RS485
 		    rs485Errors++;
+#endif // DEBUG_RS485
 		}
 	    }
 	} else {
@@ -1016,13 +1087,17 @@ mqttReconnect(void)
     }
     // Connected, so ditch out with runstate on the screen, update some diags
     updateRunstate();
+#ifdef DEBUG_WIFI
     {
 	mqttState *relatedMqttEntity;
+	relatedMqttEntity = lookupEntity(mqttEntityId::entityWifiRecon);
+	sendDataFromMqttState(relatedMqttEntity, false);    // Send update for related entity
 	relatedMqttEntity = lookupEntity(mqttEntityId::entityRSSI);
 	sendDataFromMqttState(relatedMqttEntity, false);    // Send update for related entity
 	relatedMqttEntity = lookupEntity(mqttEntityId::entityBSSID);
 	sendDataFromMqttState(relatedMqttEntity, false);    // Send update for related entity
     }
+#endif // DEBUG_WIFI
 }
 
 mqttState *
@@ -1092,8 +1167,10 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			    break;
 			}
 		    }
+#ifdef DEBUG_RS485
 		} else {
 		    rs485Errors++;
+#endif // DEBUG_RS485
 		}
 	    }
 	}
@@ -1168,16 +1245,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	    if (rs->unsignedShortValue == DISPATCH_START_START) {
 		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, rs);
-		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		    daveErrorCode = rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
-		} else {
-		    daveErrorCode = 900000 + rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
-		}
-	    } else {
-		daveErrorCode = 800000 + rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
 	    }
-	} else {
-	    daveErrorCode = 700000 + rs->unsignedShortValue;  // hack so I can see numeric value in "errors"
 	}
 #endif // DEBUG_NO_RS485
 	break;
@@ -1185,7 +1253,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 3399;
-	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, rs);
@@ -1205,7 +1273,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 4499;
-	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, rs);
@@ -1215,7 +1283,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 4488;
-	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, rs);
@@ -1235,7 +1303,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 5599;
-	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1, rs);
@@ -1245,7 +1313,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 5588;
-	sprintf(rs->dataValueFormatted, "%d", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1, rs);
@@ -1254,7 +1322,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityBatPwr:
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::signedShort;
-	rs->signedIntValue = -2255;
+	rs->signedShortValue = -2255;
 	sprintf(rs->dataValueFormatted, "%d", rs->signedShortValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
@@ -1271,50 +1339,47 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, rs);
 #endif // DEBUG_NO_RS485
 	break;
+#ifdef DEBUG_CALLBACKS
     case mqttEntityId::entityCallbacks:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = receivedCallbacks;
 	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
-    case mqttEntityId::entityErrors:
-	rs->returnDataType = modbusReturnDataType::unsignedInt;
-	rs->unsignedIntValue = daveErrorCode;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
-	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-	break;
+#endif // DEBUG_CALLBACKS
+#ifdef DEBUG_RS485
     case mqttEntityId::entityRs485Errors:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = rs485Errors;
 	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
+#endif // DEBUG_RS485
 #ifdef DEBUG_FREEMEM
     case mqttEntityId::entityFreemem:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = freeMemory();
 	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
-#endif
+#endif // DEBUG_FREEMEM
+    case mqttEntityId::entityUptime:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = getUptimeSeconds();
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
     case mqttEntityId::entityVersion:
 	rs->returnDataType = modbusReturnDataType::character;
 	strcpy(rs->characterValue, _version);
-	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_CHARACTER_DESC);
 	sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
+#ifdef DEBUG_WIFI
     case mqttEntityId::entityRSSI:
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = WiFi.RSSI();
-	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_SIGNED_INT_DESC);
 	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
     case mqttEntityId::entityBSSID:
@@ -1323,29 +1388,35 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	    byte *bssid = WiFi.BSSID();
 	    sprintf(rs->characterValue, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
 	}
-	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_CHARACTER_DESC);
 	strcpy(rs->dataValueFormatted, rs->characterValue);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
     case mqttEntityId::entityTxPower:
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = WiFi.getTxPower();
-	strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_SIGNED_INT_DESC);
 	sprintf(rs->dataValueFormatted, "%0.1f", rs->signedIntValue / 4.0f);
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_READ_DATA_REGISTER_SUCCESS_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
+    case mqttEntityId::entityWifiRecon:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = wifiReconnects;
+	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+#endif // DEBUG_WIFI
     case mqttEntityId::entityUnknown:
 	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC);
 	result = modbusRequestAndResponseStatusValues::notValidIncomingTopic;
 	break;
     }
 
+#ifdef DEBUG_RS485
     if ((result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) &&
 	(result != modbusRequestAndResponseStatusValues::notValidIncomingTopic)) {
 	rs485Errors++;
     }
+#endif // DEBUG_RS485
+
     return result;
 }
 
@@ -1364,8 +1435,6 @@ addState(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultAd
     result = dave_readRegister(singleEntity, &response);
 
     if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-//	addQuote = (response.returnDataType == modbusReturnDataType::character || response.hasLookup);
-//	sprintf(stateAddition, "%s%s%s", addQuote ? "\"" : "", response.dataValueFormatted, addQuote ? "\"" : "");
 	// Let the onward process also know if the buffer failed.
 	resultAddedToPayload = addToPayload(response.dataValueFormatted);
     } else {
@@ -1491,6 +1560,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 //	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
 	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
 	break;
+    case homeAssistantClass::homeAssistantClassDuration:
+	sprintf(stateAddition, "%s, \"device_class\": \"duration\"", stateAddition);
+	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
+	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"s\"", stateAddition);
+	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	break;
     case homeAssistantClass::homeAssistantClassBox:
 	sprintf(stateAddition, "%s, \"mode\": \"box\"", stateAddition);
 	break;
@@ -1565,22 +1640,27 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	sprintf(stateAddition, "%s, \"icon\": \"mdi:battery\"", stateAddition);
 	sprintf(stateAddition, "%s, \"min\": 10, \"max\": 100", stateAddition);
 	break;
+#ifdef DEBUG_WIFI
     case mqttEntityId::entityRSSI:
     case mqttEntityId::entityBSSID:
     case mqttEntityId::entityTxPower:
+    case mqttEntityId::entityWifiRecon:
 	sprintf(stateAddition, ", \"icon\": \"mdi:wifi\"");
 	break;
+#endif // DEBUG_WIFI
     case mqttEntityId::entityVersion:
 	sprintf(stateAddition, ", \"icon\": \"mdi:numeric\"");
 	break;
+#ifdef DEBUG_RS485
     case mqttEntityId::entityRs485Errors:
 	sprintf(stateAddition, ", \"icon\": \"mdi:alert-decagram-outline\"");
 	break;
+#endif // DEBUG_RS485
 #ifdef DEBUG_FREEMEM
     case mqttEntityId::entityFreemem:
 	sprintf(stateAddition, ", \"icon\": \"mdi:memory\"");
 	break;
-#endif
+#endif // DEBUG_FREEMEM
     default:
 	break;
     }
@@ -1613,7 +1693,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	return resultAddedToPayload;
     }
 
-// DAVE - make json_attributes bwe optional
+// DAVE - make json_attributes be optional
 #if 0
     sprintf(stateAddition, ", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/attributes\"",
 	    haUniqueId, singleEntity->mqttName);
@@ -1787,7 +1867,9 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
     Serial.println(_debugOutput);
 #endif
 
+#ifdef DEBUG_CALLBACKS
     receivedCallbacks++;
+#endif // DEBUG_CALLBACKS
 
     // Get the payload
     for (int i = 0; i < length; i++) {
@@ -1828,13 +1910,17 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	    }
 	}
 	if (!mqttEntity || mqttEntity->entityId == mqttEntityId::entityUnknown) {
+#ifdef DEBUG_CALLBACKS
 	    unknownCallbacks++;
+#endif // DEBUG_CALLBACKS
 	    return; // No further processing possible.
 	}
     }
 
     if (length == 0) {
+#ifdef DEBUG_CALLBACKS
 	badCallbacks++;
+#endif // DEBUG_CALLBACKS
 	return; // We won't be doing anything if no payload
     }
 
@@ -1850,7 +1936,6 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 
 	// First, process value.
 	switch (mqttEntity->entityId) {
-	case mqttEntityId::entityErrors:
 	case mqttEntityId::entitySocTarget:
 	case mqttEntityId::entityRegNum:
 	    singleInt32 = strtol(mqttIncomingPayload, &endPtr, 10);
@@ -1877,9 +1962,6 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	if (!err) {
 	    // Now set the value and take appropriate action(s)
 	    switch (mqttEntity->entityId) {
-	    case mqttEntityId::entityErrors:
-		unknownCallbacks = singleInt32;   // Set local variable
-		break;
 	    case mqttEntityId::entitySocTarget:
 		singleRegisterValueConverted = (uint16_t)(singleInt32 / .4);
 #ifdef DEBUG_NO_RS485
@@ -1887,7 +1969,9 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 #else // DEBUG_NO_RS485
 		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, singleRegisterValueConverted, &response);
 		if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+#ifdef DEBUG_RS485
 		    rs485Errors++;
+#endif DEBUG_RS485
 		}
 #endif // DEBUG_NO_RS485
 		break;
@@ -1905,7 +1989,9 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 		if (!strcmp(singleString, DISPATCH_START_STOP_DESC)) {
 		    result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_STOP, &response);
 		    if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+#ifdef DEBUG_RS485
 			rs485Errors++;
+#endif // DEBUG_RS485
 		    }
 		} else {
 		    singleRegisterValueConverted = lookupDispatchMode(singleString);
@@ -1914,10 +2000,14 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 			if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
 			    result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_START, &response);
 			    if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+#ifdef DEBUG_RS485
 				rs485Errors++;
+#endif // DEBUG_RS485
 			    }
 			} else {
+#ifdef DEBUG_RS485
 			    rs485Errors++;
+#endif // DEBUG_RS485
 			}
 		    }
 		}

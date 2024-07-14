@@ -112,16 +112,18 @@ modbusRequestAndResponseStatusValues RS485Handler::sendModbus(uint8_t frame[], b
 		delay(REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL);
 #endif
 
-		// Make sure there are no spurious characters in the in/out buffer.
-		flushRS485();
-
-		//Send
-		digitalWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_TX);
-
 		// Debug output the frame?
 #ifdef DEBUG_OUTPUT_TX_RX
 		outputFrameToSerial(true, frame, actualFrameSize);
 #endif
+
+		// Make sure there are no spurious characters in the in/out buffer.
+		flushRS485();
+
+		checkRS485IsQuiet();
+
+		//Send
+		digitalWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_TX);
 
 		_RS485Serial->write(frame, actualFrameSize);
 		// Ensure it's sent on its way.
@@ -574,5 +576,25 @@ bool RS485Handler::checkForData()
 	else
 	{
 		return true;
+	}
+}
+
+/*
+checkRS485IsQuiet
+
+Make sure RS485 has noone else talking
+*/
+void RS485Handler::checkRS485IsQuiet()
+{
+	unsigned long startTime = millis();
+
+	while (millis() < (startTime + QUIET_MILLIS_BEFORE_TX))
+	{
+		if (_RS485Serial->available())
+		{
+			_RS485Serial->read();
+			startTime = millis();  // start over
+		}
+		delay(2);
 	}
 }

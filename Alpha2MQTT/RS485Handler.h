@@ -44,6 +44,9 @@ Handles Modbus requests and responses in a tidy class separate from main program
 #define TX_PIN 17							// Serial Transmit pin
 #endif
 
+// Ensure RS485 is quiet for this many millis before transmitting to help avoid collisions
+#define QUIET_MILLIS_BEFORE_TX 10
+
 class RS485Handler
 {
 
@@ -56,6 +59,7 @@ class RS485Handler
 
 		char* _debugOutput;
 		void flushRS485();
+		void checkRS485IsQuiet();
 		modbusRequestAndResponseStatusValues listenResponse(modbusRequestAndResponse* resp);
 		bool checkForData();
 		void outputFrameToSerial(bool transmit, uint8_t frame[], byte actualFrameSize);
