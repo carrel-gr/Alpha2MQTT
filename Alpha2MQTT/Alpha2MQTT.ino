@@ -29,7 +29,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.16";
+char _version[6] = "v2.17";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -43,9 +43,7 @@ WiFiClient _wifi;
 #define WIFI_POWER_MIN 12
 #define WIFI_POWER_DECREMENT .25
 float wifiPower = WIFI_MAX_POWER + WIFI_POWER_DECREMENT;  // Will decrement once before setting
-#define WIFI_CONNECTED WiFi.isConnected()
 #else // MP_ESP8266
-#define WIFI_CONNECTED 1
 wifi_power_t wifiPower = WIFI_POWER_11dBm; // Will bump to max before setting
 #endif // MP_ESP8266
 
@@ -321,7 +319,7 @@ loop()
     updateOLED(true, "", "", "");
 
     // Make sure WiFi is good
-    if (!WIFI_CONNECTED || WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() != WL_CONNECTED) {
 	setupWifi(false);
 	mqttReconnect();
     }
@@ -386,15 +384,18 @@ setupWifi(bool initialConnect)
     }
     Serial.println(_debugOutput);
 #endif
+    if (initialConnect) {
+	WiFi.disconnect(); // If it auto-started, restart it our way.
+	delay(100);
 #ifdef DEBUG_WIFI
-    if (!initialConnect) {
+    } else {
 	wifiReconnects++;
-    }
 #endif // DEBUG_WIFI
+    }
 
     // And continually try to connect to WiFi.
     // If it doesn't, the device will just wait here before continuing
-    for (int tries = 0; !WIFI_CONNECTED || WiFi.status() != WL_CONNECTED; tries++) {
+    for (int tries = 0; WiFi.status() != WL_CONNECTED; tries++) {
 	snprintf(line3, sizeof(line3), "WiFi %d ...", tries);
 
 	if (tries == 5000) {
@@ -406,8 +407,15 @@ setupWifi(bool initialConnect)
 
 	    // Set up in Station Mode - Will be connecting to an access point
 	    WiFi.mode(WIFI_STA);
+	    // Helps when multiple APs for our SSID
 	    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
 	    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+
+	    // Set the hostname for this Arduino
+	    WiFi.hostname(DEVICE_NAME);
+
+	    // And connect to the details defined at the top
+	    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
 #if defined MP_ESP8266
 	    wifiPower -= WIFI_POWER_DECREMENT;
@@ -444,11 +452,6 @@ setupWifi(bool initialConnect)
 	    WiFi.setTxPower(wifiPower);
 	    snprintf(line4, sizeof(line4), "TX: %0.01fdBm", wifiPower / 4.0f);
 #endif
-	    // Set the hostname for this Arduino
-	    WiFi.hostname(DEVICE_NAME);
-
-	    // And connect to the details defined at the top
-	    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	}
 
 	if (initialConnect) {
@@ -693,8 +696,8 @@ updateRunstate()
 	digitalWrite(LED_BUILTIN, HIGH);
 
 #ifdef DEBUG_NO_RS485
-	strcpy(line2, "DAVE  :  DAVE");
-	strcpy(line3, dispatchModeDesc);
+	strcpy(line2, "NO RS485");
+	strcpy(line3, "");
 	request = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	// Line 2: Get Dispatch Start - Is Alpha2MQTT controlling the inverter?
@@ -798,10 +801,7 @@ updateRunstate()
 	{
 	    static int debugIdx = 0;
 
-	    if (debugIdx < 0) {
-		snprintf(line4, sizeof(line4), "Code Error");
-		debugIdx = 0;
-	    } else if (debugIdx < 1) {
+	    if (debugIdx < 1) {
 		snprintf(line4, sizeof(line4), "Uptime: %u", getUptimeSeconds());
 		debugIdx = 1;
 #ifdef DEBUG_FREEMEM
@@ -1028,7 +1028,7 @@ mqttReconnect(void)
 	_mqtt.disconnect();		// Just in case.
 	delay(200);
 
-	if (!WIFI_CONNECTED || WiFi.status() != WL_CONNECTED) {
+	if (WiFi.status() != WL_CONNECTED) {
 	    setupWifi(false);
 	}
 
@@ -2101,7 +2101,7 @@ getDispatchModeDesc(char *dest, uint16_t mode)
 	strcpy(dest, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
 	break;
     default:
-	strcpy(dest, "Unknown");
+	sprintf(dest, "Unknown (%d)", mode);
 	break;
     }
 }
