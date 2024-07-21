@@ -458,14 +458,14 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_BATTERY_HOME_R_RELAY_STATUS:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_BATTERY_HOME_R_PACK_ID_OF_MIN_CELL_VOLTAGE:
@@ -598,7 +598,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_SOH:
@@ -617,7 +617,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->registerCount = 2;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1:
@@ -689,14 +689,14 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_BATTERY_HOME_RW_BATTERY_MOS_CONTROL:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		rs->registerCount = 1;
 		break;
 	}
 	case REG_BATTERY_HOME_R_BATTERY_SOC_CALIBRATION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		rs->registerCount = 1;
 		break;
 	}
@@ -1051,7 +1051,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	case REG_INVERTER_HOME_R_WORKING_MODE:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		rs->registerCount = 1;
 		break;
 	}
@@ -1143,49 +1143,49 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_METER_CT_SELECT:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_BATTERY_READY:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_IP_METHOD:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_LOCAL_IP_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->registerCount = 2;
-		rs->hasLookup = true; // Using this to treat output as string
+//		rs->hasLookup = true; // Using this to treat output as string
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_SUBNET_MASK_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->registerCount = 2;
-		rs->hasLookup = true; // Using this to treat output as string
+//		rs->hasLookup = true; // Using this to treat output as string
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_GATEWAY_1:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->registerCount = 2;
-		rs->hasLookup = true; // Using this to treat output as string
+//		rs->hasLookup = true; // Using this to treat output as string
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_MODBUS_ADDRESS:
@@ -1198,14 +1198,14 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_TIMING_RW_TIME_PERIOD_CONTROL_FLAG:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_TIMING_RW_UPS_RESERVE_SOC:
@@ -1272,7 +1272,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_DISPATCH_RW_ACTIVE_POWER_1:
@@ -1291,7 +1291,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_DISPATCH_RW_DISPATCH_SOC:
@@ -1334,14 +1334,14 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->registerCount = 2;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_SAFETY_TEST_RW_GRID_REGULATION:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
-		rs->hasLookup = true;
+//		rs->hasLookup = true;
 		break;
 	}
 	case REG_CUSTOM_SYSTEM_DATE_TIME:
@@ -1651,6 +1651,12 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_SIGNED_SHORT_DESC);
 			break;
 		}
+		case modbusReturnDataType::notDefined:
+		{
+			strcpy(rs->returnDataTypeDesc, MODBUS_RETURN_DATA_TYPE_NOT_DEFINED_DESC);
+			result = modbusRequestAndResponseStatusValues::notHandledRegister;
+			break;
+		}
 		}
 
 		switch (registerAddress)
@@ -1748,7 +1754,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// Minus = feeding, Positive = drawing
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1757,7 +1763,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// Minus = feeding, Positive = drawing
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1766,7 +1772,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// Minus = feeding, Positive = drawing
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1775,7 +1781,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// Minus = feeding, Positive = drawing
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1784,7 +1790,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1793,7 +1799,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1802,7 +1808,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1811,7 +1817,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1820,7 +1826,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1829,7 +1835,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1838,7 +1844,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1847,7 +1853,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1978,7 +1984,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 1W/bit
 			// Current generation
 			// Positive = PV generating / In theory should never be negative.
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1988,7 +1994,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 1W/bit
 			// Current generation
 			// Positive = PV generating / In theory should never be negative.
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -1998,7 +2004,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 1W/bit
 			// Current generation
 			// Positive = PV generating / In theory should never be negative.
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2008,7 +2014,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 1W/bit
 			// Current generation
 			// Positive = PV generating / In theory should never be negative.
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2017,7 +2023,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2026,7 +2032,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2035,7 +2041,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2044,7 +2050,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1var
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2053,7 +2059,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2062,7 +2068,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2071,7 +2077,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2080,7 +2086,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1VA
 			// Always zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2467,7 +2473,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// Reserve
 			// Zero for me, or warning is actually zero, so I cannot confirm
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2670,7 +2676,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2679,7 +2685,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2688,7 +2694,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2697,7 +2703,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2706,7 +2712,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2715,7 +2721,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2724,7 +2730,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2733,7 +2739,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2742,7 +2748,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2751,7 +2757,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2760,7 +2766,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2769,7 +2775,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// //
 			// Zero for me at present, unable to verify
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2824,7 +2830,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// My B3 returns a number I don't recognise.  It's load of house or battery related but doesn't match the web interface
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2833,7 +2839,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2842,7 +2848,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2851,7 +2857,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit
 			// My B3 returns 65526.  Or 65.526kW  What the?
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -2906,7 +2912,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// 1W/bit
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2915,7 +2921,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2924,7 +2930,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2932,7 +2938,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// 1W/bit
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2964,7 +2970,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -2989,7 +2995,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3014,7 +3020,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3039,7 +3045,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3064,7 +3070,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3089,7 +3095,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3105,7 +3111,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// Reserve
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3113,7 +3119,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// Reserve
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3121,7 +3127,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// Reserve
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3129,7 +3135,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// Reserve
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3319,7 +3325,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Always returns zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3328,7 +3334,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 1W/bit
 			// Returns the PV capacity as defined on the web site
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -3645,7 +3651,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1W/bit Offset: 32000 load<32000
 
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 
 			break;
 		}
@@ -3655,7 +3661,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Integer
 			// 1Var/bit Offset: 32000 load<32000
 
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -3678,7 +3684,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// 1S/bit
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
 
@@ -4033,7 +4039,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Signed Integer
 			// 1W/bit
 			// Current load of house
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 
@@ -4062,7 +4068,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// 1W/bit
 			// Current generation
 			// Positive = Load pulling / In theory should never be negative.
-			sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 			break;
 		}
 		}
@@ -4084,7 +4090,7 @@ Takes a series of uint8_t variables and converts into UK formatted date/time val
 void RegisterHandler::createFormattedDateTime(char *target, uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second)
 {
 	char months[12][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-	sprintf(target, "%02d/%0s/20%d %02d:%02d:%02d", day, months[month - 1], year, hour, minute, second);
+	sprintf(target, "%02d/%s/20%d %02d:%02d:%02d", day, months[month - 1], year, hour, minute, second);
 }
 
 
