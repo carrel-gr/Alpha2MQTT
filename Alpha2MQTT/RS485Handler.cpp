@@ -140,9 +140,11 @@ modbusRequestAndResponseStatusValues RS485Handler::sendModbus(uint8_t frame[], b
 			    result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess ||
 			    result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				// In case of multpile talkers, try to make sure this response is for us.
+				// Does response function match request function?
 				if (resp->functionCode != frame[1]) {
 					result = modbusRequestAndResponseStatusValues::preProcessing;
 				} else {
+					// Does response read size match requested read size?
 					if ((resp->functionCode == MODBUS_FN_READDATAREGISTER) && (resp->dataSize != (frame[5] * 2))) {
 						result = modbusRequestAndResponseStatusValues::preProcessing;
 					}
@@ -590,7 +592,7 @@ void RS485Handler::checkRS485IsQuiet()
 
 	while (millis() < (startTime + QUIET_MILLIS_BEFORE_TX))
 	{
-		if (_RS485Serial->available())
+		while (_RS485Serial->available())
 		{
 			_RS485Serial->read();
 			startTime = millis();  // start over

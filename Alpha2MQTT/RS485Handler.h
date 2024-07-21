@@ -45,7 +45,7 @@ Handles Modbus requests and responses in a tidy class separate from main program
 #endif
 
 // Ensure RS485 is quiet for this many millis before transmitting to help avoid collisions
-#define QUIET_MILLIS_BEFORE_TX 10
+#define QUIET_MILLIS_BEFORE_TX 20
 
 class RS485Handler
 {
