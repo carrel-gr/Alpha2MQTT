@@ -29,12 +29,11 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.17";
+char _version[6] = "v2.20";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
 char statusTopic[128];
-uint32_t uptimeSeconds = 0, uptimeSecondsSaved = 0;
 
 // WiFi parameters
 WiFiClient _wifi;
@@ -72,7 +71,7 @@ RS485Handler* _modBus;
 RegisterHandler* _registerHandler;
 
 // Fixed char array for messages to the serial port
-char _debugOutput[100];
+char _debugOutput[128];
 
 int32_t regNumberToRead = -1;
 #ifdef DEBUG_WIFI
@@ -85,6 +84,7 @@ uint32_t badCallbacks = 0;
 #endif // DEBUG_CALLBACKS
 #ifdef DEBUG_RS485
 uint32_t rs485Errors = 0;
+uint32_t rs485InvalidValues = 0;
 #endif // DEBUG_RS485
 #ifdef DEBUG_NO_RS485
 int16_t dispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
@@ -95,7 +95,7 @@ uint16_t socTarget = 252;
 /*
  * Home Assistant auto-discovered values
  */
-static struct mqttState _mqttAllEntities[] PROGMEM =
+static struct mqttState _mqttAllEntities[] =
 {
 #ifdef DEBUG_FREEMEM
     { mqttEntityId::entityFreemem,            "A2M_freemem",          mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
@@ -105,15 +105,16 @@ static struct mqttState _mqttAllEntities[] PROGMEM =
 #endif // DEBUG_CALLBACKS
 #ifdef DEBUG_RS485
     { mqttEntityId::entityRs485Errors,        "A2M_RS485_Errors",     mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityRs485InvalidVals,   "A2M_RS485_Inv_Vals",   mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
 #endif // DEBUG_RS485
 #ifdef DEBUG_WIFI
     { mqttEntityId::entityRSSI,               "A2M_RSSI",             mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityBSSID,              "A2M_BSSID",            mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
-    { mqttEntityId::entityTxPower,            "A2M_TX_Power",         mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
-    { mqttEntityId::entityWifiRecon,          "A2M_reconnects",       mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityTxPower,            "A2M_TX_Power",         mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityWifiRecon,          "A2M_reconnects",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
 #endif // DEBUIG_WIFI
     { mqttEntityId::entityUptime,             "A2M_uptime",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassDuration },
-    { mqttEntityId::entityVersion,            "A2M_version",          mqttUpdateFreq::updateFreqOneHour, false, homeAssistantClass::homeAssistantClassInfo },
+    { mqttEntityId::entityVersion,            "A2M_version",          mqttUpdateFreq::updateFreqOneDay, false, homeAssistantClass::homeAssistantClassInfo },
     { mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassBattery },
     { mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
     { mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
@@ -172,7 +173,6 @@ void setup()
     modbusRequestAndResponse response;
     char baudRateString[10] = "";
     int baudRateIterator = -1;
-    bool firstCheck = true;
 
     // Set up serial for debugging using an appropriate baud rate
     // This is for communication with the development environment, NOT the Alpha system
@@ -223,9 +223,15 @@ void setup()
 			
 	    // Example, 2048, if declared as 2048 is positions 0 to 2047, and position 2047 needs to be zero.  2047 usable chars in payload.
 	    _mqttPayload = new char[_maxPayloadSize];
-	    emptyPayload();
-
-	    break;
+	    if (_mqttPayload != NULL) {
+		emptyPayload();
+		break;
+	    } else {
+#ifdef DEBUG
+		sprintf(_debugOutput, "Coudln't allocate payload of %d bytes", _maxPayloadSize);
+		Serial.println(_debugOutput);
+#endif
+	    }
 	} else {
 #ifdef DEBUG
 	    sprintf(_debugOutput, "Coudln't allocate buffer of %d bytes", _bufferSize);
@@ -255,11 +261,11 @@ void setup()
 	}
 
 	// Update the display
-	sprintf(baudRateString, "%u", knownBaudRates[baudRateIterator]);
+	sprintf(baudRateString, "%lu", knownBaudRates[baudRateIterator]);
 
 	updateOLED(false, "Test Baud", baudRateString, "");
 #ifdef DEBUG
-	sprintf(_debugOutput, "About To Try: %u", knownBaudRates[baudRateIterator]);
+	sprintf(_debugOutput, "About To Try: %lu", knownBaudRates[baudRateIterator]);
 	Serial.println(_debugOutput);
 #endif
 	// Set the rate
@@ -313,7 +319,9 @@ void setup()
 void
 loop()
 {
+#ifdef FORCE_RESTART
     static unsigned long autoReboot = 0;
+#endif
 
     // Refresh LED Screen, will cause the status asterisk to flicker
     updateOLED(true, "", "", "");
@@ -322,6 +330,7 @@ loop()
     if (WiFi.status() != WL_CONNECTED) {
 	setupWifi(false);
 	mqttReconnect();
+	resendHaData = true;
     }
 
     // make sure mqtt is still connected
@@ -338,7 +347,7 @@ loop()
 	sendHaData();
     }
 
-    // Read and transmit all configured data to MQTT
+    // Read and transmit all entity data to MQTT
     sendData();
 	
     // Force Restart?
@@ -353,11 +362,12 @@ loop()
 uint32_t
 getUptimeSeconds(void)
 {
+    static uint32_t uptimeSeconds = 0, uptimeSecondsSaved = 0;
     uint32_t nowSeconds = millis() / 1000;
 
     if (nowSeconds < uptimeSeconds) {
 	// We wrapped
-	uptimeSecondsSaved += uptimeSeconds;
+	uptimeSecondsSaved += (UINT32_MAX / 1000);;
     }
     uptimeSeconds = nowSeconds;
     return uptimeSecondsSaved + uptimeSeconds;
@@ -450,7 +460,7 @@ setupWifi(bool initialConnect)
 		break;
 	    }
 	    WiFi.setTxPower(wifiPower);
-	    snprintf(line4, sizeof(line4), "TX: %0.01fdBm", wifiPower / 4.0f);
+	    snprintf(line4, sizeof(line4), "TX: %0.01fdBm", (int)wifiPower / 4.0f);
 #endif
 	}
 
@@ -474,7 +484,7 @@ setupWifi(bool initialConnect)
 #endif
 
     // Connected, so ditch out with blank screen
-    snprintf(line3, sizeof(line3), "%s", WiFi.localIP().toString());
+    snprintf(line3, sizeof(line3), "%s", WiFi.localIP().toString().c_str());
     updateOLED(false, line3, "", _version);
 }
 
@@ -541,10 +551,12 @@ updateOLED(bool justStatus, const char* line2, const char* line3, const char* li
 
 #ifdef LARGE_DISPLAY
     // There's 20 characters we can play with, width wise.
-    sprintf(line1Contents, "A2M   %c%c%c  RSSI: %d", _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), WiFi.RSSI() );
+    snprintf(line1Contents, sizeof(line1Contents), "A2M  %c%c%c  RSSI: %d",
+	     _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), WiFi.RSSI() );
 #else // LARGE_DISPLAY
     // There's ten characters we can play with, width wise.
-    sprintf(line1Contents, "%s%c%c%c", "A2M    ", _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
+    snprintf(line1Contents, sizeof(line1Contents), "%s%c%c%c", "A2M    ",
+	     _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
 #endif // LARGE_DISPLAY
     _display.println(line1Contents);
 
@@ -594,7 +606,9 @@ getSerialNumber()
 {
     modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
     modbusRequestAndResponse response;
+#ifndef DEBUG_NO_RS485
     uint32_t tries = 0;
+#endif
     char oledLine3[OLED_CHARACTER_WIDTH];
     char oledLine4[OLED_CHARACTER_WIDTH];
 
@@ -612,7 +626,7 @@ getSerialNumber()
 #ifdef DEBUG_RS485
 	rs485Errors++;
 #endif // DEBUG_RS485
-	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
+	snprintf(oledLine4, sizeof(oledLine4), "%ld", tries);
 	updateOLED(false, "Alpha sys", "not known", oledLine4);
 	delay(1000);
 	result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_EMS_SN_BYTE_1_2, &response);
@@ -632,7 +646,7 @@ getSerialNumber()
 #ifdef DEBUG_RS485
 	rs485Errors++;
 #endif // DEBUG_RS485
-	snprintf(oledLine4, sizeof(oledLine4), "%d", tries);
+	snprintf(oledLine4, sizeof(oledLine4), "%ld", tries);
 	updateOLED(false, "Bat type", "not known", oledLine4);
 	delay(1000);
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_TYPE, &response);
@@ -681,9 +695,10 @@ updateRunstate()
 {
     static unsigned long lastRun = 0;
     modbusRequestAndResponse response;
+#ifndef DEBUG_NO_RS485
     modbusRequestAndResponseStatusValues request;
-    char *dMode = NULL, *dAction = NULL;
-
+    const char *dMode = NULL, *dAction = NULL;
+#endif
     char line2[OLED_CHARACTER_WIDTH] = "";
     char line3[OLED_CHARACTER_WIDTH] = "";
     char line4[OLED_CHARACTER_WIDTH] = "";
@@ -698,12 +713,11 @@ updateRunstate()
 #ifdef DEBUG_NO_RS485
 	strcpy(line2, "NO RS485");
 	strcpy(line3, "");
-	request = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	// Line 2: Get Dispatch Start - Is Alpha2MQTT controlling the inverter?
 	request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-	    strcpy(line2, "DS Err");
+	    snprintf(line2, sizeof(line2), "DS Err: %s", response.displayMessage);
 #ifdef DEBUG_RS485
 	    rs485Errors++;
 #endif // DEBUG_RS485
@@ -714,7 +728,7 @@ updateRunstate()
 		// Get the mode.
 		request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
 		if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		    strcpy(line2, "Mode Err");
+		    snprintf(line2, sizeof(line2), "Mode Err: %s", response.displayMessage);
 #ifdef DEBUG_RS485
 		    rs485Errors++;
 #endif // DEBUG_RS485
@@ -758,7 +772,7 @@ updateRunstate()
 		    // Determine if charging or discharging by looking at power
 		    request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
 		    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-			strcpy(line2, "AP Err");
+			snprintf(line2, sizeof(line2), "AP Err: %s", response.displayMessage);
 #ifdef DEBUG_RS485
 			rs485Errors++;
 #endif // DEBUG_RS485
@@ -775,11 +789,16 @@ updateRunstate()
 		}
 	    }
 	}
+#ifdef DEBUG
+	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    Serial.println(response.statusMqttMessage);
+	}
+#endif // DEBUG
 
 	// Get battery info for line 3
 	request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_POWER, &response);
 	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-	    strcpy(line3, "Bat Err");
+	    snprintf(line3, sizeof(line3), "Bat Err: %s", response.displayMessage);
 #ifdef DEBUG_RS485
 	    rs485Errors++;
 #endif // DEBUG_RS485
@@ -788,7 +807,7 @@ updateRunstate()
 
 	    request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
 	    if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		strcpy(line3, "SOC Err");
+		snprintf(line3, sizeof(line3), "SOC Err: %s", response.displayMessage);
 #ifdef DEBUG_RS485
 		rs485Errors++;
 #endif // DEBUG_RS485
@@ -796,13 +815,18 @@ updateRunstate()
 		snprintf(line3, sizeof(line3), "Bat: %4dW  %0.02f%%", batPower, response.unsignedShortValue * 0.1);
 	    }
 	}
+#ifdef DEBUG
+	if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    Serial.println(response.statusMqttMessage);
+	}
+#endif // DEBUG
 #endif // DEBUG_NO_RS485
 
-	{
+	{   // Line 4 - Rotating diags
 	    static int debugIdx = 0;
 
 	    if (debugIdx < 1) {
-		snprintf(line4, sizeof(line4), "Uptime: %u", getUptimeSeconds());
+		snprintf(line4, sizeof(line4), "Uptime: %lu", getUptimeSeconds());
 		debugIdx = 1;
 #ifdef DEBUG_FREEMEM
 	    } else if (debugIdx < 2) {
@@ -811,10 +835,10 @@ updateRunstate()
 #endif // DEBUG_FREEMEM
 #ifdef DEBUG_WIFI
 	    } else if (debugIdx < 3) {
-		snprintf(line4, sizeof(line4), "WiFi recon: %d", wifiReconnects);
+		snprintf(line4, sizeof(line4), "WiFi recon: %lu", wifiReconnects);
 		debugIdx = 3;
 	    } else if (debugIdx < 4) {
-		snprintf(line4, sizeof(line4), "WiFi TX: %0.01fdBm", WiFi.getTxPower() / 4.0f);
+		snprintf(line4, sizeof(line4), "WiFi TX: %0.01fdBm", (int)WiFi.getTxPower() / 4.0f);
 		debugIdx = 4;
 	    } else if (debugIdx < 5) {
 		snprintf(line4, sizeof(line4), "WiFi RSSI: %d", WiFi.RSSI());
@@ -822,19 +846,22 @@ updateRunstate()
 #endif // DEBUG_WIFI
 #ifdef DEBUG_CALLBACKS
 	    } else if (debugIdx < 6) {
-		snprintf(line4, sizeof(line4), "Callbacks: %u", receivedCallbacks);
+		snprintf(line4, sizeof(line4), "Callbacks: %lu", receivedCallbacks);
 		debugIdx = 6;
 	    } else if (debugIdx < 7) {
-		snprintf(line4, sizeof(line4), "Unk CBs: %u", unknownCallbacks);
+		snprintf(line4, sizeof(line4), "Unk CBs: %lu", unknownCallbacks);
 		debugIdx = 7;
 	    } else if (debugIdx < 8) {
-		snprintf(line4, sizeof(line4), "Bad CBs: %u", badCallbacks);
+		snprintf(line4, sizeof(line4), "Bad CBs: %lu", badCallbacks);
 		debugIdx = 8;
 #endif // DEBUG_CALLBACKS
 #ifdef DEBUG_RS485
 	    } else if (debugIdx < 9) {
-		snprintf(line4, sizeof(line4), "RS485 Err: %u", rs485Errors);
+		snprintf(line4, sizeof(line4), "RS485 Err: %lu", rs485Errors);
 		debugIdx = 9;
+	    } else if (debugIdx < 10) {
+		snprintf(line4, sizeof(line4), "RS485 Inv: %lu", rs485InvalidValues);
+		debugIdx = 10;
 #endif // DEBUG_RS485
 	    } else { // Must be last
 		snprintf(line4, sizeof(line4), "Version: %s", _version);
@@ -842,15 +869,7 @@ updateRunstate()
 	    }
 	}
 
-	if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-	    updateOLED(false, line2, line3, line4);
-	} else {
-#ifdef DEBUG
-	    Serial.println(response.statusMqttMessage);
-#endif
-	    // Use line3 (line 3) for errors
-	    updateOLED(false, "", line3, response.displayMessage);
-	}
+	updateOLED(false, line2, line3, line4);
     }
 }
 #else // LARGE_DISPLAY
@@ -1017,6 +1036,7 @@ mqttReconnect(void)
 {
     bool subscribed = false;
     char subscriptionDef[100];
+    char mqttClientName[64];
     char line3[OLED_CHARACTER_WIDTH];
     char line4[OLED_CHARACTER_WIDTH];
     int tries = 0;
@@ -1041,12 +1061,13 @@ mqttReconnect(void)
 	updateOLED(false, "Connecting", line3, _version);
 	delay(100);
 
-	// Attempt to connect
+	strlcpy(mqttClientName, DEVICE_NAME, sizeof(mqttClientName));
 #ifdef DEBUG_NO_RS485
-	if (_mqtt.connect(DEVICE_NAME"-test", MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
-#else // DEBUG_NO_RS485
-	if (_mqtt.connect(DEVICE_NAME, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
+	strlcat(mqttClientName, "-test", sizeof(mqttClientName));
 #endif // DEBUG_NO_RS485
+
+	// Attempt to connect
+	if (_mqtt.connect(mqttClientName, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
 	    int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 #ifdef DEBUG
 	    Serial.println("Connected MQTT");
@@ -1056,7 +1077,7 @@ mqttReconnect(void)
 	    sprintf(subscriptionDef, "%s", MQTT_SUB_HOMEASSISTANT);
 	    subscribed = _mqtt.subscribe(subscriptionDef);
 #ifdef DEBUG
-	    sprintf(_debugOutput, "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
+	    snprintf(_debugOutput, sizeof(_debugOutput), "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
 	    Serial.println(_debugOutput);
 #endif
 
@@ -1065,7 +1086,7 @@ mqttReconnect(void)
 		    sprintf(subscriptionDef, DEVICE_NAME "/%s/%s/command", haUniqueId, _mqttAllEntities[i].mqttName);
 		    subscribed = subscribed && _mqtt.subscribe(subscriptionDef);
 #ifdef DEBUG
-		    sprintf(_debugOutput, "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
+		    snprintf(_debugOutput, sizeof(_debugOutput), "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
 		    Serial.println(_debugOutput);
 #endif
 		}
@@ -1087,17 +1108,6 @@ mqttReconnect(void)
     }
     // Connected, so ditch out with runstate on the screen, update some diags
     updateRunstate();
-#ifdef DEBUG_WIFI
-    {
-	mqttState *relatedMqttEntity;
-	relatedMqttEntity = lookupEntity(mqttEntityId::entityWifiRecon);
-	sendDataFromMqttState(relatedMqttEntity, false);    // Send update for related entity
-	relatedMqttEntity = lookupEntity(mqttEntityId::entityRSSI);
-	sendDataFromMqttState(relatedMqttEntity, false);    // Send update for related entity
-	relatedMqttEntity = lookupEntity(mqttEntityId::entityBSSID);
-	sendDataFromMqttState(relatedMqttEntity, false);    // Send update for related entity
-    }
-#endif // DEBUG_WIFI
 }
 
 mqttState *
@@ -1126,16 +1136,18 @@ lookupEntity(mqttEntityId entityId)
 }
 
 modbusRequestAndResponseStatusValues
-dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
+readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 {
     modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+
+    rs->dataValueFormatted[0] = 0;
 
     switch (singleEntity->entityId) {
     case mqttEntityId::entityRegValue:
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = regNumberToRead;  // Just return the register #
-	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	if (regNumberToRead < 0) {
@@ -1158,12 +1170,19 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			    sprintf(rs->dataValueFormatted, "Unknown (%s)", rs->characterValue);
 			    break;
 			case modbusReturnDataType::signedInt:
+			    sprintf(rs->dataValueFormatted, "Unknown (%ld)", rs->signedIntValue);
+			    break;
 			case modbusReturnDataType::signedShort:
-			    sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedIntValue);
+			    sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedShortValue);
 			    break;
 			case modbusReturnDataType::unsignedInt:
+			    sprintf(rs->dataValueFormatted, "Unknown (%lu)", rs->unsignedIntValue);
+			    break;
 			case modbusReturnDataType::unsignedShort:
 			    sprintf(rs->dataValueFormatted, "Unknown (%u)", rs->unsignedShortValue);
+			    break;
+			case modbusReturnDataType::notDefined:
+			    sprintf(rs->dataValueFormatted, "Unknown (XX)");
 			    break;
 			}
 		    }
@@ -1179,7 +1198,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityRegNum:
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = regNumberToRead;
-	sprintf(rs->dataValueFormatted, "%d", regNumberToRead);
+	sprintf(rs->dataValueFormatted, "%ld", regNumberToRead);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
     case mqttEntityId::entityGridReg:
@@ -1231,8 +1250,17 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_SOC, rs);
 #endif // DEBUG_NO_RS485
-	// HA needs an int.  Re-format
-	sprintf(rs->dataValueFormatted, "%d", (int)(rs->unsignedShortValue * 0.4));
+	{
+	    int socPercent = (int)(rs->unsignedShortValue * 0.4);
+	    // HA needs an int.  Re-format
+	    sprintf(rs->dataValueFormatted, "%d", socPercent);
+	    // De-bounce
+	    if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		if ((socPercent < SOC_TARGET_MIN) || (socPercent > SOC_TARGET_MAX)) {
+		    result = modbusRequestAndResponseStatusValues::readDataInvalidValue;
+		}
+	    }
+	}
 	break;
     case mqttEntityId::entityDispatchMode:
 #ifdef DEBUG_NO_RS485
@@ -1248,12 +1276,18 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 	    }
 	}
 #endif // DEBUG_NO_RS485
+	// De-bounce
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	    if (!strncmp(rs->dataValueFormatted, "Unknown", strlen("Unknown"))) {
+		result = modbusRequestAndResponseStatusValues::readDataInvalidValue;
+	    }
+	}
 	break;
     case mqttEntityId::entityPvEnergy:
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 3399;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, rs);
@@ -1263,7 +1297,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = 3388;
-	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_CUSTOM_TOTAL_SOLAR_POWER, rs);
@@ -1273,7 +1307,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 4499;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ENERGY_FEED_TO_GRID_1, rs);
@@ -1283,7 +1317,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 4488;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ENERGY_CONSUMED_FROM_GRID_1, rs);
@@ -1293,7 +1327,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = 1221;
-	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, rs);
@@ -1303,7 +1337,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 5599;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_CHARGE_ENERGY_1, rs);
@@ -1313,7 +1347,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_NO_RS485
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = 5588;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 	result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_DISCHARGE_ENERGY_1, rs);
@@ -1343,7 +1377,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityCallbacks:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = receivedCallbacks;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
 #endif // DEBUG_CALLBACKS
@@ -1351,7 +1385,13 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityRs485Errors:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = rs485Errors;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+	break;
+    case mqttEntityId::entityRs485InvalidVals:
+	rs->returnDataType = modbusReturnDataType::unsignedInt;
+	rs->unsignedIntValue = rs485InvalidValues;
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
 #endif // DEBUG_RS485
@@ -1359,14 +1399,14 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityFreemem:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = freeMemory();
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
 #endif // DEBUG_FREEMEM
     case mqttEntityId::entityUptime:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = getUptimeSeconds();
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
     case mqttEntityId::entityVersion:
@@ -1379,7 +1419,7 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityRSSI:
 	rs->returnDataType = modbusReturnDataType::signedInt;
 	rs->signedIntValue = WiFi.RSSI();
-	sprintf(rs->dataValueFormatted, "%d", rs->signedIntValue);
+	sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
     case mqttEntityId::entityBSSID:
@@ -1400,22 +1440,29 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
     case mqttEntityId::entityWifiRecon:
 	rs->returnDataType = modbusReturnDataType::unsignedInt;
 	rs->unsignedIntValue = wifiReconnects;
-	sprintf(rs->dataValueFormatted, "%u", rs->unsignedIntValue);
+	sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 	result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 	break;
 #endif // DEBUG_WIFI
-    case mqttEntityId::entityUnknown:
-	strcpy(rs->statusMqttMessage, MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC);
-	result = modbusRequestAndResponseStatusValues::notValidIncomingTopic;
-	break;
     }
 
+    if (result == modbusRequestAndResponseStatusValues::readDataInvalidValue) {
 #ifdef DEBUG_RS485
-    if ((result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) &&
-	(result != modbusRequestAndResponseStatusValues::notValidIncomingTopic)) {
-	rs485Errors++;
-    }
+	rs485InvalidValues++;
 #endif // DEBUG_RS485
+#ifdef DEBUG
+	snprintf(_debugOutput, sizeof(_debugOutput), "readEntity: invalid val for: %s (%s)", singleEntity->mqttName, rs->dataValueFormatted);
+	Serial.println(_debugOutput);
+#endif
+    } else if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+#ifdef DEBUG_RS485
+	rs485Errors++;
+#endif // DEBUG_RS485
+#ifdef DEBUG
+	snprintf(_debugOutput, sizeof(_debugOutput), "Failed to read register: %s, Result = %d", singleEntity->mqttName, result);
+	Serial.println(_debugOutput);
+#endif
+    }
 
     return result;
 }
@@ -1426,22 +1473,19 @@ dave_readRegister(mqttState *singleEntity, modbusRequestAndResponse* rs)
  * Query the handled entity in the usual way, and add the cleansed output to the buffer
  */
 modbusRequestAndResponseStatusValues
-addState(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultAddedToPayload)
+addState(mqttState *singleEntity, modbusRequestAndResponseStatusValues *resultAddedToPayload)
 {
     modbusRequestAndResponse response;
-    modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+    modbusRequestAndResponseStatusValues result;
 
     // Read the register
-    result = dave_readRegister(singleEntity, &response);
+    result = readEntity(singleEntity, &response);
 
     if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 	// Let the onward process also know if the buffer failed.
-	resultAddedToPayload = addToPayload(response.dataValueFormatted);
+	*resultAddedToPayload = addToPayload(response.dataValueFormatted);
     } else {
-#ifdef DEBUG
-	sprintf(_debugOutput, "Failed to read register for: %s, Result was: %d", singleEntity->mqttName, result);
-	Serial.println(_debugOutput);
-#endif
+	*resultAddedToPayload = modbusRequestAndResponseStatusValues::preProcessing;
     }
     return result;
 }
@@ -1475,31 +1519,28 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	return resultAddedToPayload;
     }
 
-    strcpy(stateAddition, "");
     switch (singleEntity->haClass) {
     case homeAssistantClass::homeAssistantClassBox:
-	sprintf(stateAddition, "\"component\": \"number\", ");
+	sprintf(stateAddition, "\"component\": \"number\"");
 	break;
     case homeAssistantClass::homeAssistantClassSelect:
-	sprintf(stateAddition, "\"component\": \"select\", ");
+	sprintf(stateAddition, "\"component\": \"select\"");
 	break;
     default:
-	sprintf(stateAddition, "\"component\": \"sensor\", ");
+	sprintf(stateAddition, "\"component\": \"sensor\"");
 	break;
     }
-    if (strlen(stateAddition) != 0) {
-	resultAddedToPayload = addToPayload(stateAddition);
-	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-	    return resultAddedToPayload;
-	}
+    resultAddedToPayload = addToPayload(stateAddition);
+    if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+	return resultAddedToPayload;
     }
 
-    strcpy(stateAddition, "\"device\": {");
-    sprintf(stateAddition, "%s \"name\": \"%s\", \"model\": \"%s\", \"manufacturer\": \"AlphaESS\"",
-	    stateAddition, haUniqueId, deviceBatteryType);
-    sprintf(stateAddition, "%s, \"identifiers\": [\"%s\"]", stateAddition, haUniqueId);
-//    sprintf(stateAddition, "%s, \"connections\": [[\"" DEVICE_NAME " ID\", \"%s\"]]", stateAddition, haUniqueId);
-    sprintf(stateAddition, "%s}", stateAddition);
+    snprintf(stateAddition, sizeof(stateAddition),
+	     ", \"device\": {"
+	     " \"name\": \"%s\", \"model\": \"%s\", \"manufacturer\": \"AlphaESS\","
+	     " \"identifiers\": [\"%s\"]}",
+	     haUniqueId, deviceBatteryType,
+	     haUniqueId);
     resultAddedToPayload = addToPayload(stateAddition);
     if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 	return resultAddedToPayload;
@@ -1509,72 +1550,85 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
     while(char *ch = strchr(prettyName, '_')) {
 	*ch = ' ';
     }
-    sprintf(stateAddition, ", \"name\": \"%s\"", prettyName);
+    snprintf(stateAddition, sizeof(stateAddition), ", \"name\": \"%s\"", prettyName);
     resultAddedToPayload = addToPayload(stateAddition);
     if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 	return resultAddedToPayload;
     }
 
-    sprintf(stateAddition, ", \"unique_id\": \"%s_%s\"", haUniqueId, singleEntity->mqttName);
+    snprintf(stateAddition, sizeof(stateAddition), ", \"unique_id\": \"%s_%s\"", haUniqueId, singleEntity->mqttName);
     resultAddedToPayload = addToPayload(stateAddition);
     if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 	return resultAddedToPayload;
     }
 
-    strcpy(stateAddition, "");
     switch (singleEntity->haClass) {
     case homeAssistantClass::homeAssistantClassEnergy:
-	sprintf(stateAddition, "%s, \"device_class\": \"energy\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"total_increasing\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"kWh\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"energy\""
+		 ", \"state_class\": \"total_increasing\""
+		 ", \"unit_of_measurement\": \"kWh\""
+		 ", \"force_update\": \"true\"");
 	break;
     case homeAssistantClass::homeAssistantClassPower:
-	sprintf(stateAddition, "%s, \"device_class\": \"power\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"W\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"power\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"W\""
+		 ", \"force_update\": \"true\"");
 	break;
     case homeAssistantClass::homeAssistantClassBattery:
-	sprintf(stateAddition, "%s, \"device_class\": \"battery\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"%%\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"battery\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"%%\""
+		 ", \"force_update\": \"true\"");
 	break;
     case homeAssistantClass::homeAssistantClassVoltage:
-	sprintf(stateAddition, "%s, \"device_class\": \"voltage\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"V\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"voltage\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"V\""
+		 ", \"force_update\": \"true\"");
 	break;
     case homeAssistantClass::homeAssistantClassCurrent:
-	sprintf(stateAddition, "%s, \"device_class\": \"current\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"A\"", stateAddition);
-	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"current\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"A\""
+		 ", \"force_update\": \"true\"");
 	break;
     case homeAssistantClass::homeAssistantClassTemp:
-	sprintf(stateAddition, "%s, \"device_class\": \"temperature\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"°C\"", stateAddition);
-//	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
-	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"temperature\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"°C\""
+//		 ", \"force_update\": \"true\""
+		 ", \"entity_category\": \"diagnostic\"");
 	break;
     case homeAssistantClass::homeAssistantClassDuration:
-	sprintf(stateAddition, "%s, \"device_class\": \"duration\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"s\"", stateAddition);
-	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"duration\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"s\""
+		 ", \"entity_category\": \"diagnostic\"");
 	break;
     case homeAssistantClass::homeAssistantClassBox:
-	sprintf(stateAddition, "%s, \"mode\": \"box\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"mode\": \"box\"");
 	break;
     case homeAssistantClass::homeAssistantClassInfo:
-	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"entity_category\": \"diagnostic\"");
 	break;
     case homeAssistantClass::homeAssistantClassSelect:
-	sprintf(stateAddition, "%s, \"device_class\": \"enum\"", stateAddition);
-//	sprintf(stateAddition, "%s, \"force_update\": \"true\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"enum\""
+//		 ", \"force_update\": \"true\""
+		 );
+	break;
+    default:
+	strcpy(stateAddition, "");
 	break;
     }
     if (strlen(stateAddition) != 0) {
@@ -1584,12 +1638,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	}
     }
 
-    strcpy(stateAddition, "");
     switch (singleEntity->entityId) {
     case mqttEntityId::entityRegNum:
-	sprintf(stateAddition, "%s, \"entity_category\": \"diagnostic\"", stateAddition);
-	sprintf(stateAddition, "%s, \"icon\": \"mdi:pound\"", stateAddition);
-	sprintf(stateAddition, "%s, \"min\": -1, \"max\": 41000", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"entity_category\": \"diagnostic\""
+		 ", \"icon\": \"mdi:pound\""
+		 ", \"min\": -1, \"max\": 41000");
 	break;
     case mqttEntityId::entityRegValue:
 	sprintf(stateAddition, ", \"icon\": \"mdi:folder-pound-outline\"");
@@ -1622,23 +1676,27 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	sprintf(stateAddition, ", \"icon\": \"mdi:battery-minus\"");
 	break;
     case mqttEntityId::entityBatCap:
-	sprintf(stateAddition, "%s, \"device_class\": \"energy\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"total_increasing\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"kWh\"", stateAddition);
-	sprintf(stateAddition, "%s, \"icon\": \"mdi:home-battery\"", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"energy\""
+		 ", \"state_class\": \"total_increasing\""
+		 ", \"unit_of_measurement\": \"kWh\""
+		 ", \"icon\": \"mdi:home-battery\"");
 	break;
     case mqttEntityId::entityDispatchMode:
-	sprintf(stateAddition, ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]",
-		DISPATCH_START_STOP_DESC, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC, DISPATCH_MODE_ECO_MODE_DESC,
-		DISPATCH_MODE_FCAS_MODE_DESC, DISPATCH_MODE_LOAD_FOLLOWING_DESC, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC, DISPATCH_MODE_NORMAL_MODE_DESC,
-		DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC, DISPATCH_MODE_PV_POWER_SETTING_DESC, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]",
+		 DISPATCH_START_STOP_DESC, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC, DISPATCH_MODE_ECO_MODE_DESC,
+		 DISPATCH_MODE_FCAS_MODE_DESC, DISPATCH_MODE_LOAD_FOLLOWING_DESC, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC, DISPATCH_MODE_NORMAL_MODE_DESC,
+		 DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC, DISPATCH_MODE_PV_POWER_SETTING_DESC, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
 	break;
     case mqttEntityId::entitySocTarget:
-	sprintf(stateAddition, "%s, \"device_class\": \"battery\"", stateAddition);
-	sprintf(stateAddition, "%s, \"state_class\": \"measurement\"", stateAddition);
-	sprintf(stateAddition, "%s, \"unit_of_measurement\": \"%%\"", stateAddition);
-	sprintf(stateAddition, "%s, \"icon\": \"mdi:battery\"", stateAddition);
-	sprintf(stateAddition, "%s, \"min\": 10, \"max\": 100", stateAddition);
+	snprintf(stateAddition, sizeof(stateAddition),
+		 ", \"device_class\": \"battery\""
+		 ", \"state_class\": \"measurement\""
+		 ", \"unit_of_measurement\": \"%%\""
+		 ", \"icon\": \"mdi:battery\""
+		 ", \"min\": %d, \"max\": %d",
+		 SOC_TARGET_MIN, SOC_TARGET_MAX);
 	break;
 #ifdef DEBUG_WIFI
     case mqttEntityId::entityRSSI:
@@ -1653,6 +1711,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	break;
 #ifdef DEBUG_RS485
     case mqttEntityId::entityRs485Errors:
+    case mqttEntityId::entityRs485InvalidVals:
 	sprintf(stateAddition, ", \"icon\": \"mdi:alert-decagram-outline\"");
 	break;
 #endif // DEBUG_RS485
@@ -1661,7 +1720,14 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	sprintf(stateAddition, ", \"icon\": \"mdi:memory\"");
 	break;
 #endif // DEBUG_FREEMEM
-    default:
+#ifdef DEBUG_CALLBACKS
+    case mqttEntityId::entityCallbacks:
+#endif // DEBUG_CALLBACKS
+    case mqttEntityId::entityUptime:
+    case mqttEntityId::entityBatSoc:
+    case mqttEntityId::entityMaxCellTemp:
+    case mqttEntityId::entityInverterTemp:
+	strcpy(stateAddition, "");
 	break;
     }
     if (strlen(stateAddition) != 0) {
@@ -1703,7 +1769,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
     }
 #endif
 
-    sprintf(stateAddition, "}");
+    strcpy(stateAddition, "}");
     resultAddedToPayload = addToPayload(stateAddition);
     if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 	return resultAddedToPayload;
@@ -1725,8 +1791,7 @@ addToPayload(const char* addition)
 		 _maxPayloadSize - 1, targetRequestedSize);
 	return modbusRequestAndResponseStatusValues::payloadExceededCapacity;
     } else {
-	// Add to the payload by sprintf back on itself with the addition
-	sprintf(_mqttPayload, "%s%s", _mqttPayload, addition);
+	strlcat(_mqttPayload, addition, _maxPayloadSize);
 	return modbusRequestAndResponseStatusValues::addedToPayload;
     }
 }
@@ -1809,37 +1874,36 @@ sendData()
 }
 
 void
-sendDataFromMqttState(mqttState *entity, bool doHomeAssistant)
+sendDataFromMqttState(mqttState *singleEntity, bool doHomeAssistant)
 {
-    char topic[128], *entityType;
-    // For getting back out of flash - Storing these arrays in PROGMEM so they don't use valuable RAM.
-    mqttState singleEntity;
-    // For storing results
+    char topic[256];
     modbusRequestAndResponseStatusValues result;
     modbusRequestAndResponseStatusValues resultAddedToPayload;
 
+    if (singleEntity == NULL)
+	return;
+
     emptyPayload();
 
-    memcpy_P(&singleEntity, entity, sizeof(mqttState));
-
-    switch (singleEntity.haClass) {
-    case homeAssistantClass::homeAssistantClassBox:
-	entityType = "number";
-	break;
-    case homeAssistantClass::homeAssistantClassSelect:
-	entityType = "select";
-	break;
-    default:
-	entityType = "sensor";
-	break;
-    }
-
     if (doHomeAssistant) {
-	snprintf(topic, sizeof(topic), "homeassistant/%s/%s/%s/config", entityType, haUniqueId, singleEntity.mqttName);
-	result = addConfig(&singleEntity, resultAddedToPayload);
+	const char *entityType;
+	switch (singleEntity->haClass) {
+	case homeAssistantClass::homeAssistantClassBox:
+	    entityType = "number";
+	    break;
+	case homeAssistantClass::homeAssistantClassSelect:
+	    entityType = "select";
+	    break;
+	default:
+	    entityType = "sensor";
+	    break;
+	}
+
+	snprintf(topic, sizeof(topic), "homeassistant/%s/%s/%s/config", entityType, haUniqueId, singleEntity->mqttName);
+	result = addConfig(singleEntity, resultAddedToPayload);
     } else {
-	snprintf(topic, sizeof(topic), DEVICE_NAME "/%s/%s/state", haUniqueId, singleEntity.mqttName);
-	result = addState(&singleEntity, resultAddedToPayload);
+	snprintf(topic, sizeof(topic), DEVICE_NAME "/%s/%s/state", haUniqueId, singleEntity->mqttName);
+	result = addState(singleEntity, &resultAddedToPayload);
     }
 
     if ((resultAddedToPayload != modbusRequestAndResponseStatusValues::payloadExceededCapacity) &&
@@ -1857,9 +1921,11 @@ mqttCallback()
 */
 void mqttCallback(char* topic, byte* message, unsigned int length)
 {
+#ifndef DEBUG_NO_RS485
     modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+#endif
     modbusRequestAndResponse response;
-    char mqttIncomingPayload[128] = ""; // Should be enough to cover request JSON.
+    char mqttIncomingPayload[64] = ""; // Should be enough to cover command requests
     mqttState *mqttEntity = NULL;
 
 #ifdef DEBUG
@@ -1872,9 +1938,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 #endif // DEBUG_CALLBACKS
 
     // Get the payload
-    for (int i = 0; i < length; i++) {
-	mqttIncomingPayload[i] = message[i];
-    }
+    strlcpy(mqttIncomingPayload, (char *)message, sizeof(mqttIncomingPayload));
 #ifdef DEBUG
     sprintf(_debugOutput, "Payload: %d", length);
     Serial.println(_debugOutput);
@@ -1888,15 +1952,14 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	    resendAllData = true;
 	} else {
 #ifdef DEBUG
-	    sprintf(_debugOutput, "Unknown homeassistant/status: %s", mqttIncomingPayload);
-	    Serial.println(_debugOutput);
+	    Serial.println("Unknown homeassistant/status: ");
+	    Serial.println(mqttIncomingPayload);
 #endif
 	}
 	return; // No further processing needed.
     } else {
 	// match to DEVICE_NAME "/SERIAL#/MQTT_NAME/command"
 	char matchPrefix[64];
-	bool known = false;
 
 	snprintf(matchPrefix, sizeof(matchPrefix), DEVICE_NAME "/%s/", haUniqueId);
 	if (!strncmp(topic, matchPrefix, strlen(matchPrefix))) {
@@ -1909,7 +1972,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 		}
 	    }
 	}
-	if (!mqttEntity || mqttEntity->entityId == mqttEntityId::entityUnknown) {
+	if (mqttEntity == NULL) {
 #ifdef DEBUG_CALLBACKS
 	    unknownCallbacks++;
 #endif // DEBUG_CALLBACKS
@@ -1926,13 +1989,12 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 
     // Update system!!!
     {
-	int32_t singleInt32;
+	int32_t singleInt32 = -1;
 	char *singleString;
 	uint16_t singleRegisterValueConverted;
-	uint32_t dataRegisterValueConverted;
 	char *endPtr = NULL;
 	mqttState *relatedMqttEntity;
-	bool err = false;
+	bool valueProcessingError = false;
 
 	// First, process value.
 	switch (mqttEntity->entityId) {
@@ -1940,9 +2002,9 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	case mqttEntityId::entityRegNum:
 	    singleInt32 = strtol(mqttIncomingPayload, &endPtr, 10);
 	    if ((endPtr == mqttIncomingPayload) || ((singleInt32 == 0) && (errno != 0))) {
-		err = true;
+		valueProcessingError = true;
 #ifdef DEBUG
-		sprintf(_debugOutput, "Trying to write %s with a bad value! %d", mqttEntity->mqttName, errno);
+		snprintf(_debugOutput, sizeof(_debugOutput), "Trying to write %s with a bad value! %d", mqttEntity->mqttName, errno);
 		Serial.println(_debugOutput);
 #endif
 	    }
@@ -1955,25 +2017,34 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	    sprintf(_debugOutput, "Trying to update an unhandled entity! %d", mqttEntity->entityId);
 	    Serial.println(_debugOutput);
 #endif
-	    err = true;
-	    break;
+#ifdef DEBUG_CALLBACKS
+	    unknownCallbacks++;
+#endif // DEBUG_CALLBACKS
+	    return; // No further processing possible.
 	}
 
-	if (!err) {
+	if (!valueProcessingError) {
 	    // Now set the value and take appropriate action(s)
 	    switch (mqttEntity->entityId) {
 	    case mqttEntityId::entitySocTarget:
-		singleRegisterValueConverted = (uint16_t)(singleInt32 / .4);
+		if ((singleInt32 < SOC_TARGET_MIN) || (singleInt32 > SOC_TARGET_MAX)) {
+#ifdef DEBUG
+		    sprintf(_debugOutput, "HA sent invalid SocTarget! %ld", singleInt32);
+		    Serial.println(_debugOutput);
+#endif
+		} else {
+		    singleRegisterValueConverted = (uint16_t)(singleInt32 / .4);
 #ifdef DEBUG_NO_RS485
-		socTarget = singleRegisterValueConverted;
+		    socTarget = singleRegisterValueConverted;
 #else // DEBUG_NO_RS485
-		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, singleRegisterValueConverted, &response);
-		if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
+		    result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, singleRegisterValueConverted, &response);
+		    if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
 #ifdef DEBUG_RS485
-		    rs485Errors++;
-#endif DEBUG_RS485
-		}
+			rs485Errors++;
+#endif // DEBUG_RS485
+		    }
 #endif // DEBUG_NO_RS485
+		}
 		break;
 	    case mqttEntityId::entityRegNum:
 		regNumberToRead = singleInt32;    // Set local variable
@@ -2101,7 +2172,7 @@ getDispatchModeDesc(char *dest, uint16_t mode)
 	strcpy(dest, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
 	break;
     default:
-	sprintf(dest, "Unknown (%d)", mode);
+	sprintf(dest, "Unknown (%u)", mode);
 	break;
     }
 }

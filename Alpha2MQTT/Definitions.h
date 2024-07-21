@@ -35,7 +35,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define LARGE_DISPLAY
 
 // Set your EMS version.  Either EMS2.5 or EMS3.5/EMS3.6
-// If not 3.5/3.6 is not set, then you get 2.5
+// If 3.5/3.6 is not set, then you get 2.5
 #define EMS_35_36
 
 #ifdef LARGE_DISPLAY
@@ -48,7 +48,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 #define DEBUG
-#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
+//#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
 #define DEBUG_WIFI	// Enable extra debug on display and via MQTT
 #define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
 #define DEBUG_RS485	// Enable extra debug on display and via MQTT
@@ -56,11 +56,15 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define DEBUG_LEVEL2 // For serial flooding action
 //#define DEBUG_OUTPUT_TX_RX
 
+// The SOC Target value is a percent value.  Define MIN/MAX for HA
+#define SOC_TARGET_MAX 100
+#define SOC_TARGET_MIN 10
+
 // If values for some registers such as voltage or temperatures appear to be out by a decimal place or two, try the following:
 // Documentation declares 1V - However Presume 0.1 as result appears to reflect this.  I.e. my voltage reading was 2421, * 0.1 for 242.1
 // However EMS3.5/EMS3.6 seems to follow the spec.
 #ifdef EMS_35_36
-#define GRID_VOLTAGE_MULTIPLIER 1
+#define GRID_VOLTAGE_MULTIPLIER 1.0
 #else // EMS_35_36
 #define GRID_VOLTAGE_MULTIPLIER 0.1
 #endif // EMS_35_36
@@ -936,7 +940,8 @@ enum modbusRequestAndResponseStatusValues
 	setNormalSuccess,
 	payloadExceededCapacity,
 	addedToPayload,
-	notValidIncomingTopic
+//	notValidIncomingTopic,
+	readDataInvalidValue
 };
 #define MODBUS_REQUEST_AND_RESPONSE_PREPROCESSING_MQTT_DESC "preProcessing"
 #define MODBUS_REQUEST_AND_RESPONSE_NOT_HANDLED_REGISTER_MQTT_DESC "notHandledRegister"
@@ -954,7 +959,8 @@ enum modbusRequestAndResponseStatusValues
 #define MODBUS_REQUEST_AND_RESPONSE_SET_NORMAL_SUCCESS_MQTT_DESC "setNormalSuccess"
 #define MODBUS_REQUEST_AND_RESPONSE_PAYLOAD_EXCEEDED_CAPACITY_MQTT_DESC "payloadExceededCapacity"
 #define MODBUS_REQUEST_AND_RESPONSE_ADDED_TO_PAYLOAD_MQTT_DESC "addedToPayload"
-#define MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC "notValidIncomingTopic"
+//#define MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_MQTT_DESC "notValidIncomingTopic"
+#define MODBUS_REQUEST_AND_RESPONSE_READ_DATA_INVALID_VALUE_MQTT_DESC "readDataInvalidValue"
 
 
 #define MODBUS_REQUEST_AND_RESPONSE_PREPROCESSING_DISPLAY_DESC "PRE-PROC"
@@ -973,7 +979,8 @@ enum modbusRequestAndResponseStatusValues
 #define MODBUS_REQUEST_AND_RESPONSE_SET_NORMAL_SUCCESS_DISPLAY_DESC "SET-NO-SUC"
 #define MODBUS_REQUEST_AND_RESPONSE_PAYLOAD_EXCEEDED_CAPACITY_DISPLAY_DESC "PAYLOAD-ER"
 #define MODBUS_REQUEST_AND_RESPONSE_ADDED_TO_PAYLOAD_DISPLAY_DESC "ADDED-PAYL"
-#define MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_DISPLAY_DESC "INV-IN-TOP"
+//#define MODBUS_REQUEST_AND_RESPONSE_NOT_VALID_INCOMING_TOPIC_DISPLAY_DESC "INV-IN-TOP"
+#define MODBUS_REQUEST_AND_RESPONSE_READ_DATA_INVALID_VALUE_DISPLAY_DESC "INV-VAL"
 
 #define MAX_CHARACTER_VALUE_LENGTH 21
 #define MAX_MQTT_NAME_LENGTH 81
@@ -1004,7 +1011,7 @@ struct modbusRequestAndResponse
 	uint8_t registerCount = 0;
 	modbusReturnDataType returnDataType = modbusReturnDataType::notDefined;
 	char returnDataTypeDesc[MAX_DATA_TYPE_DESC_LENGTH] = MODBUS_RETURN_DATA_TYPE_NOT_DEFINED_DESC;
-	bool hasLookup = false;
+//	bool hasLookup = false;
 
 	// And one of these will be set by the receiving process
 	uint32_t unsignedIntValue = 0;
@@ -1030,6 +1037,7 @@ enum mqttEntityId {
 #endif // DEBUG_WIFI
 #ifdef DEBUG_RS485
     entityRs485Errors,
+    entityRs485InvalidVals,
 #endif // DEBUG_RS485
     entityUptime,
     entityVersion,
@@ -1049,8 +1057,7 @@ enum mqttEntityId {
     entityInverterTemp,
     entityGridReg,
     entityRegNum,
-    entityRegValue,
-    entityUnknown // Must be last entry!!
+    entityRegValue
 };
 
 enum mqttUpdateFreq {
