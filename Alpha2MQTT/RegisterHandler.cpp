@@ -1606,7 +1606,10 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			if (result == modbusRequestAndResponseStatusValues::preProcessing)
 			{
 				// Generate a frame without CRC (ending 0, 0), sendModbus will do the rest
-				uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_READDATAREGISTER, registerAddressToSend >> 8, registerAddressToSend & 0xff, 0, rs->registerCount, 0, 0 };
+				uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_READDATAREGISTER,
+						    (uint8_t)((registerAddressToSend >> 8) & 0xff), (uint8_t)(registerAddressToSend & 0xff),
+						    0, rs->registerCount,
+						    0, 0 };
 
 				// And send to the device, it's all synchronos so by the time we get a response we will know if success or failure
 				result = _modBus->sendModbus(frame, sizeof(frame), rs);
@@ -4113,7 +4116,10 @@ modbusRequestAndResponseStatusValues RegisterHandler::readRawRegister(uint16_t r
 	if (result == modbusRequestAndResponseStatusValues::preProcessing)
 	{
 		// Generate a frame with CRC placeholders of 0, 0 at the end
-		uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_READDATAREGISTER, registerAddress >> 8, registerAddress & 0xff, 0, rs->registerCount, 0, 0 };
+		uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_READDATAREGISTER,
+				    (uint8_t)((registerAddress >> 8) & 0xff), (uint8_t)(registerAddress & 0xff),
+				    0, rs->registerCount,
+				    0, 0 };
 
 		// And send to the device, it's all synchronos so by the time we get a response we will know if success or failure
 		result = _modBus->sendModbus(frame, sizeof(frame), rs);
@@ -4147,7 +4153,10 @@ modbusRequestAndResponseStatusValues RegisterHandler::writeRawSingleRegister(uin
 	if (result == modbusRequestAndResponseStatusValues::preProcessing)
 	{
 		// Generate a frame with CRC placeholders of 0, 0 at the end
-		uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_WRITESINGLEREGISTER, registerAddress >> 8, registerAddress & 0xff, value >> 8, value & 0xff, 0, 0 };
+		uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_WRITESINGLEREGISTER,
+				    (uint8_t)((registerAddress >> 8) & 0xff), (uint8_t)(registerAddress & 0xff),
+				    (uint8_t)((value >> 8) & 0xff), (uint8_t)(value & 0xff),
+				    0, 0 };
 
 		// And send to the device, it's all synchronos so by the time we get a response we will know if success or failure
 		result = _modBus->sendModbus(frame, sizeof(frame), rs);
@@ -4179,12 +4188,20 @@ modbusRequestAndResponseStatusValues RegisterHandler::writeRawDataRegister(uint1
 	{
 		if (rs->registerCount == 1)
 		{
-			uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_WRITEDATAREGISTER, registerAddress >> 8, registerAddress & 0xff, 0, rs->registerCount, 2, value >> 8, value & 0xff, 0, 0 };
+			uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_WRITEDATAREGISTER,
+					    (uint8_t)((registerAddress >> 8) & 0xff), (uint8_t)(registerAddress & 0xff),
+					    0, rs->registerCount, 2,
+					    (uint8_t)((value >> 8) & 0xff), (uint8_t)(value & 0xff),
+					    0, 0 };
 			result = _modBus->sendModbus(frame, sizeof(frame), rs);
 		}
 		else if (rs->registerCount == 2)
 		{
-			uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_WRITEDATAREGISTER, registerAddress >> 8, registerAddress & 0xff, 0, rs->registerCount, 4, value >> 24, value >> 16, value >> 8, value & 0xff, 0, 0 };
+			uint8_t	frame[] = { ALPHA_SLAVE_ID, MODBUS_FN_WRITEDATAREGISTER,
+					    (uint8_t)((registerAddress >> 8) & 0xff), (uint8_t)(registerAddress & 0xff),
+					    0, rs->registerCount, 4,
+					    (uint8_t)((value >> 24) & 0xff), (uint8_t)((value >> 16) & 0xff), (uint8_t)((value >> 8) & 0xff), (uint8_t)(value & 0xff),
+					    0, 0 };
 			result = _modBus->sendModbus(frame, sizeof(frame), rs);
 		}
 		// And now it has been sent to the device, the response is essentially synchronos so by the time we get a response we will know if success or failure
