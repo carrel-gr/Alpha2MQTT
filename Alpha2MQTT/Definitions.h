@@ -46,6 +46,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define SCREEN_HEIGHT 48
 #endif // LARGE_DISPLAY
 
+// Set this to true to set the "retain" flag when publishing to MQTT
+#define MQTT_RETAIN true
 
 #define DEBUG
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT

@@ -29,7 +29,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.20";
+char _version[6] = "v2.21";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -1937,8 +1937,19 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
     receivedCallbacks++;
 #endif // DEBUG_CALLBACKS
 
-    // Get the payload
-    strlcpy(mqttIncomingPayload, (char *)message, sizeof(mqttIncomingPayload));
+    if ((length == 0) || (length >= sizeof(mqttIncomingPayload))) {
+#ifdef DEBUG
+	sprintf(_debugOutput, "mqttCallback: bad length: %d", length);
+	Serial.println(_debugOutput);
+#endif
+#ifdef DEBUG_CALLBACKS
+	badCallbacks++;
+#endif // DEBUG_CALLBACKS
+	return; // We won't be doing anything
+    } else {
+	// Get the payload (ensure NULL termination)
+	strlcpy(mqttIncomingPayload, (char *)message, length + 1);
+    }
 #ifdef DEBUG
     sprintf(_debugOutput, "Payload: %d", length);
     Serial.println(_debugOutput);
@@ -1962,14 +1973,13 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	char matchPrefix[64];
 
 	snprintf(matchPrefix, sizeof(matchPrefix), DEVICE_NAME "/%s/", haUniqueId);
-	if (!strncmp(topic, matchPrefix, strlen(matchPrefix))) {
-	    if (!strcmp(&topic[strlen(topic) - strlen("/command")], "/command")) {
-		char topicEntityName[64];
-		int topicEntityLen = strlen(topic) - strlen(matchPrefix) - strlen("/command");
-		if (topicEntityLen < sizeof(topicEntityName)) {
-		    strlcpy(topicEntityName, &topic[strlen(matchPrefix)], topicEntityLen + 1);
-		    mqttEntity = lookupSubscription(topicEntityName);
-		}
+	if (!strncmp(topic, matchPrefix, strlen(matchPrefix)) &&
+	    !strcmp(&topic[strlen(topic) - strlen("/command")], "/command")) {
+	    char topicEntityName[64];
+	    int topicEntityLen = strlen(topic) - strlen(matchPrefix) - strlen("/command");
+	    if (topicEntityLen < sizeof(topicEntityName)) {
+		strlcpy(topicEntityName, &topic[strlen(matchPrefix)], topicEntityLen + 1);
+		mqttEntity = lookupSubscription(topicEntityName);
 	    }
 	}
 	if (mqttEntity == NULL) {
@@ -1978,13 +1988,6 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 #endif // DEBUG_CALLBACKS
 	    return; // No further processing possible.
 	}
-    }
-
-    if (length == 0) {
-#ifdef DEBUG_CALLBACKS
-	badCallbacks++;
-#endif // DEBUG_CALLBACKS
-	return; // We won't be doing anything if no payload
     }
 
     // Update system!!!
@@ -2109,7 +2112,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 void sendMqtt(const char *topic)
 {
     // Attempt a send
-    if (!_mqtt.publish(topic, _mqttPayload, true)) {
+    if (!_mqtt.publish(topic, _mqttPayload, MQTT_RETAIN)) {
 #ifdef DEBUG
 	snprintf(_debugOutput, sizeof(_debugOutput), "MQTT publish failed to %s", topic);
 	Serial.println(_debugOutput);
