@@ -98,14 +98,14 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL 80
 
 // Update with your Wifi details
-#define WIFI_SSID		"Stardust"
-#define WIFI_PASSWORD	""
+#define WIFI_SSID		"SeaMonster_i"
+#define WIFI_PASSWORD	"a whole in leaky iot"
 
 // Update with your MQTT Broker details
-#define MQTT_SERVER	"192.168.1.135"
+#define MQTT_SERVER	"192.168.197.98"
 #define MQTT_PORT	1883
 #define MQTT_USERNAME	"Alpha"			// Empty string for none.
-#define MQTT_PASSWORD	"Inverter1"
+#define MQTT_PASSWORD	"RainMan7"
 
 
 // The device name is used as the MQTT base topic and presence on the network.
@@ -1026,71 +1026,71 @@ struct modbusRequestAndResponse
 
 enum mqttEntityId {
 #ifdef DEBUG_FREEMEM
-    entityFreemem,
+	entityFreemem,
 #endif // DEBUG_FREEMEM
 #ifdef DEBUG_CALLBACKS
-    entityCallbacks,
+	entityCallbacks,
 #endif // DEBUG_CALLBACKS
 #ifdef DEBUG_WIFI
-    entityRSSI,
-    entityBSSID,
-    entityTxPower,
-    entityWifiRecon,
+	entityRSSI,
+	entityBSSID,
+	entityTxPower,
+	entityWifiRecon,
 #endif // DEBUG_WIFI
 #ifdef DEBUG_RS485
-    entityRs485Errors,
-    entityRs485InvalidVals,
+	entityRs485Errors,
+	entityRs485InvalidVals,
 #endif // DEBUG_RS485
-    entityUptime,
-    entityVersion,
-    entityBatSoc,
-    entityBatPwr,
-    entityBatEnergyCharge,
-    entityBatEnergyDischarge,
-    entityGridPwr,
-    entityGridEnergyTo,
-    entityGridEnergyFrom,
-    entityPvPwr,
-    entityPvEnergy,
-    entityDispatchMode,
-    entitySocTarget,
-    entityBatCap,
-    entityMaxCellTemp,
-    entityInverterTemp,
-    entityGridReg,
-    entityRegNum,
-    entityRegValue
+	entityUptime,
+	entityVersion,
+	entityBatSoc,
+	entityBatPwr,
+	entityBatEnergyCharge,
+	entityBatEnergyDischarge,
+	entityGridPwr,
+	entityGridEnergyTo,
+	entityGridEnergyFrom,
+	entityPvPwr,
+	entityPvEnergy,
+	entityDispatchMode,
+	entitySocTarget,
+	entityBatCap,
+	entityMaxCellTemp,
+	entityInverterTemp,
+	entityGridReg,
+	entityRegNum,
+	entityRegValue
 };
 
 enum mqttUpdateFreq {
-    updateFreqTenSec,
-    updateFreqOneMin,
-    updateFreqFiveMin,
-    updateFreqOneHour,
-    updateFreqOneDay
+	updateFreqTenSec,
+	updateFreqOneMin,
+	updateFreqFiveMin,
+	updateFreqOneHour,
+	updateFreqOneDay
 };
 
 enum homeAssistantClass {
-    homeAssistantClassEnergy,
-    homeAssistantClassPower,
-    homeAssistantClassBattery,
-    homeAssistantClassVoltage,
-    homeAssistantClassCurrent,
-    homeAssistantClassTemp,
-    homeAssistantClassDuration,
-    homeAssistantClassInfo,
-    homeAssistantClassSelect,
-    homeAssistantClassBox
+	homeAssistantClassEnergy,
+	homeAssistantClassPower,
+	homeAssistantClassBattery,
+	homeAssistantClassVoltage,
+	homeAssistantClassCurrent,
+	homeAssistantClassTemp,
+	homeAssistantClassDuration,
+	homeAssistantClassInfo,
+	homeAssistantClassSelect,
+	homeAssistantClassBox
 };
 
 struct mqttState
 {
-    mqttEntityId entityId;
-//    uint16_t registerAddress;
-    char mqttName[MAX_MQTT_NAME_LENGTH];
-    mqttUpdateFreq updateFreq;
-    bool subscribe;
-    homeAssistantClass haClass;
+	mqttEntityId entityId;
+//	uint16_t registerAddress;
+	char mqttName[MAX_MQTT_NAME_LENGTH];
+	mqttUpdateFreq updateFreq;
+	bool subscribe;
+	homeAssistantClass haClass;
 };
 
 void getDispatchModeDesc(char *dest, uint16_t mode);
