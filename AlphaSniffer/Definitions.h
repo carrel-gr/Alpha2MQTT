@@ -869,7 +869,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 // Frame and Function Codes
-#define MAX_FRAME_SIZE_ZERO_INDEXED 63
+#define MAX_FRAME_SIZE_ZERO_INDEXED 511
 #define MIN_FRAME_SIZE_ZERO_INDEXED 4
 #define MAX_FRAME_SIZE_RESPONSE_WRITE_SUCCESS_ZERO_INDEXED 7
 

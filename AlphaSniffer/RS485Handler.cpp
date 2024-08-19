@@ -227,6 +227,9 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 	bool gotData = false;
 	bool timedOut = false;
 	bool breakOut = false;
+	static bool lastWasRdTx = false;
+	static bool lastWasWsTx = false;
+	static bool lastWasWdTx = false;
 
 	modbusRequestAndResponse dummy;
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
@@ -305,6 +308,9 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 				
 				resp->dataSize = 1;
 				inExpectedTotalBytesZeroIndexed++;
+				lastWasRdTx = false;
+				lastWasWsTx = false;
+				lastWasWdTx = false;
 			}
 			else
 			{
@@ -314,10 +320,18 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 				if (resp->functionCode == MODBUS_FN_WRITESINGLEREGISTER)
 				{
 					// In case of single register, high byte address (1), low byte address (1), high byte of data (1), low byte of data (1), (2)*crc
-					// No way to tell, but both directions are the same size.
-					resp->direction = dataDirection::unknown;
+					// No way to tell, but both directions are the same size.  Guess based on context.
+					if (lastWasWsTx) {
+						resp->direction = dataDirection::rx;
+						lastWasWsTx = false;
+					} else {
+						resp->direction = dataDirection::tx;
+						lastWasWsTx = true;
+					}
 					inExpectedTotalBytesZeroIndexed = MAX_FRAME_SIZE_RESPONSE_WRITE_SUCCESS_ZERO_INDEXED; // DAVE - 7
 					resp->dataSize = 4;
+					lastWasRdTx = false;
+					lastWasWdTx = false;
 				}
 				else if (resp->functionCode == MODBUS_FN_WRITEDATAREGISTER)
 				{
@@ -325,6 +339,8 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 					// Will have to guess direction when reading FRAME_POSITION_WRITE_DATA_NUM_BYTES
 					inExpectedTotalBytesZeroIndexed = MAX_FRAME_SIZE_RESPONSE_WRITE_SUCCESS_ZERO_INDEXED; // DAVE - 7
 					resp->dataSize = 4;
+					lastWasRdTx = false;
+					lastWasWsTx = false;
 				}
 				else
 				{
@@ -340,15 +356,33 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 
 					inByteNumZeroIndexed++;
 					inFrame[inByteNumZeroIndexed] = _RS485Serial->read();
-					// The high byte of Alpha register addresses is never 0x02
-					// So we can assume that 0x02 means this is a 1 register read response
-					// Assumes that all reads are 1 register, so if != 0x2, then this is a transmit
-					if (inFrame[inByteNumZeroIndexed] == 2) {
+					// The high byte of Alpha register addresses is never 0x02, 0x03, 0x05, 0x09-0x0F, 0x11 or greater
+					// So we can assume these are a register read response (value is num bytes)
+					// Problem is the response to a 2, 3, 4, or 5 register read with a 0x04, 0x06, 0x08, or 0x10 byte response.
+					if ((inFrame[inByteNumZeroIndexed] == 0x02) ||
+					    (inFrame[inByteNumZeroIndexed] == 0x03) ||
+					    (inFrame[inByteNumZeroIndexed] == 0x05) ||
+					    ((inFrame[inByteNumZeroIndexed] >= 0x09) && (inFrame[inByteNumZeroIndexed] <= 0x0F)) ||
+					    (inFrame[inByteNumZeroIndexed] >= 0x11)) {
 						resp->direction = dataDirection::rx;
 						resp->dataSize = inFrame[inByteNumZeroIndexed];
-						// slave + func + numbytes + 2 + 2 crc = 7 bytes, which is 0 to 6 when zero indexed
+						// slave(1) + func(1) + N(1) + data(N) + crc(2)
+						// for 1 register read, N=2 -> 7 bytes total, which is 0 to 6 when zero indexed
 						// And 7 takeaway 3 bytes received is 4
 						inExpectedTotalBytesZeroIndexed = inFrame[inByteNumZeroIndexed] + 4;
+						lastWasRdTx = false;
+					} else if (lastWasRdTx &&
+					    ((inFrame[inByteNumZeroIndexed] == 0x04) ||
+					     (inFrame[inByteNumZeroIndexed] == 0x06) ||
+					     (inFrame[inByteNumZeroIndexed] == 0x08) ||
+					     (inFrame[inByteNumZeroIndexed] == 0x10))) {
+						resp->direction = dataDirection::rx;
+						resp->dataSize = inFrame[inByteNumZeroIndexed];
+						// slave(1) + func(1) + N(1) + data(N) + crc(2)
+						// for 1 register read, N=2 -> 7 bytes total, which is 0 to 6 when zero indexed
+						// And 7 takeaway 3 bytes received is 4
+						inExpectedTotalBytesZeroIndexed = inFrame[inByteNumZeroIndexed] + 4;
+						lastWasRdTx = false;
 					} else {
 						resp->direction = dataDirection::tx;
 						resp->dataSize = 4;
@@ -356,27 +390,32 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
                                                 // And 7 takeaway 3 bytes received is 4
 						inExpectedTotalBytesZeroIndexed = 7;
 						resp->data[0] = inFrame[inByteNumZeroIndexed];
+						lastWasRdTx = true;
 					}
-
+					lastWasWsTx = false;
+					lastWasWdTx = false;
 				}
 			}
 
 			break;
 		}
-		case MODBUS_FN_WRITEDATAREGISTER:
+		case FRAME_POSITION_WRITE_DATA_NUM_BYTES:
 			if (resp->functionCode == MODBUS_FN_WRITEDATAREGISTER) {
-				if (inFrame[inByteNumZeroIndexed] == 2) {
+				if (!lastWasWdTx && inFrame[inByteNumZeroIndexed] == 2) {
 					// guess that 2 is not the high byte of CRC so this is a single register read
 					resp->dataSize = 7;
 					inExpectedTotalBytesZeroIndexed = 10;
 					resp->direction = dataDirection::tx;
-				} else if (inFrame[inByteNumZeroIndexed] == 4) {
-					// guess that 4 is not the high byte of CRC so this is a single register read
+					lastWasWdTx = true;
+				} else if (!lastWasWdTx && inFrame[inByteNumZeroIndexed] == 4) {
+					// guess that 4 is not the high byte of CRC so this is a double register read
 					resp->dataSize = 9;
 					inExpectedTotalBytesZeroIndexed = 12;
 					resp->direction = dataDirection::tx;
+					lastWasWdTx = true;
 				} else {
 					resp->direction = dataDirection::rx;
+					lastWasWdTx = false;
 				}
 			}
 			// Fallthrough
@@ -423,6 +462,9 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 		sprintf(_debugOutput, "Timed Out (resp->dataSize): %d", resp->dataSize);
 		Serial.println(_debugOutput);
 #endif
+		lastWasRdTx = false;
+		lastWasWsTx = false;
+		lastWasWdTx = false;
 	}
 
 
