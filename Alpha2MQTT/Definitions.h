@@ -51,8 +51,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 #define DEBUG
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
-#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
-#define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
+//#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
+//#define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
 #define DEBUG_RS485	// Enable extra debug on display and via MQTT
 //#define DEBUG_NO_RS485	// Fake-out all RS485 comms
 //#define DEBUG_LEVEL2 // For serial flooding action
@@ -98,8 +98,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL 80
 
 // Update with your Wifi details
-#define WIFI_SSID		"SeaMonster_i"
-#define WIFI_PASSWORD	"a whole in leaky iot"
+#define WIFI_SSID		"SSID"
+#define WIFI_PASSWORD	"PASS"
 
 // Update with your MQTT Broker details
 #define MQTT_SERVER	"192.168.197.98"
