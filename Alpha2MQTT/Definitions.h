@@ -1047,6 +1047,7 @@ enum mqttEntityId {
 	entityBatPwr,
 	entityBatEnergyCharge,
 	entityBatEnergyDischarge,
+	entityGridAvail,
 	entityGridPwr,
 	entityGridEnergyTo,
 	entityGridEnergyFrom,
@@ -1073,6 +1074,7 @@ enum mqttUpdateFreq {
 enum homeAssistantClass {
 	homeAssistantClassEnergy,
 	homeAssistantClassPower,
+	homeAssistantClassBinaryPower,
 	homeAssistantClassBattery,
 	homeAssistantClassVoltage,
 	homeAssistantClassCurrent,

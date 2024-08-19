@@ -29,7 +29,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.21";
+char _version[6] = "v2.30";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -119,6 +119,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
 	{ mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
 	{ mqttEntityId::entityBatEnergyDischarge, "ESS_Energy_Discharge", mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
+	{ mqttEntityId::entityGridAvail,          "Grid_Connected",       mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassBinaryPower },
 	{ mqttEntityId::entityGridPwr,            "Grid_Power",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
 	{ mqttEntityId::entityGridEnergyTo,       "Grid_Energy_To",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
 	{ mqttEntityId::entityGridEnergyFrom,     "Grid_Energy_From",     mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
@@ -1333,6 +1334,27 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, rs);
 #endif // DEBUG_NO_RS485
 		break;
+	case mqttEntityId::entityGridAvail:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		{
+			static unsigned short sval = 240;
+			if (sval == 0) sval = 240;
+			else if (sval == 240) sval = 100;
+			else sval = 0;
+			rs->unsignedShortValue = sval;
+		}
+		sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_GRID_METER_R_VOLTAGE_OF_A_PHASE, rs);
+#endif // DEBUG_NO_RS485
+		if (rs->unsignedShortValue > 215 && rs->unsignedShortValue < 265) {
+			strcpy(rs->dataValueFormatted, "on");
+		} else {
+			strcpy(rs->dataValueFormatted, "off");
+		}
+		break;
 	case mqttEntityId::entityBatEnergyCharge:
 #ifdef DEBUG_NO_RS485
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
@@ -1526,6 +1548,9 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case homeAssistantClass::homeAssistantClassSelect:
 		sprintf(stateAddition, "\"component\": \"select\"");
 		break;
+	case homeAssistantClass::homeAssistantClassBinaryPower:
+		sprintf(stateAddition, "\"component\": \"binary_sensor\"");
+		break;
 	default:
 		sprintf(stateAddition, "\"component\": \"sensor\"");
 		break;
@@ -1576,6 +1601,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"W\""
 			 ", \"force_update\": \"true\"");
+		break;
+	case homeAssistantClass::homeAssistantClassBinaryPower:
+		snprintf(stateAddition, sizeof(stateAddition),
+			 ", \"device_class\": \"connectivity\""
+			 ", \"payload_on\": \"on\""
+			 ", \"payload_off\": \"off\"");
 		break;
 	case homeAssistantClass::homeAssistantClassBattery:
 		snprintf(stateAddition, sizeof(stateAddition),
@@ -1727,6 +1758,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityBatSoc:
 	case mqttEntityId::entityMaxCellTemp:
 	case mqttEntityId::entityInverterTemp:
+	case mqttEntityId::entityGridAvail:
 		strcpy(stateAddition, "");
 		break;
 	}
@@ -1893,6 +1925,9 @@ sendDataFromMqttState(mqttState *singleEntity, bool doHomeAssistant)
 			break;
 		case homeAssistantClass::homeAssistantClassSelect:
 			entityType = "select";
+			break;
+		case homeAssistantClass::homeAssistantClassBinaryPower:
+			entityType = "binary_sensor";
 			break;
 		default:
 			entityType = "sensor";
