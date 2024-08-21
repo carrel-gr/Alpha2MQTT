@@ -11,6 +11,10 @@ Notes
 First, go and customise options at the top of Definitions.h!
 */
 
+#include <bit>
+#include <bitset>
+#include <cstdint>
+#include <iostream>
 // Supporting files
 #include "RegisterHandler.h"
 #include "RS485Handler.h"
@@ -127,9 +131,13 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityPvEnergy,           "Solar_Energy",         mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
 	{ mqttEntityId::entityDispatchMode,       "Dispatch_Mode",        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassSelect },
 	{ mqttEntityId::entitySocTarget,          "SOC_Target"   ,        mqttUpdateFreq::updateFreqTenSec,  true,  homeAssistantClass::homeAssistantClassBox },
-	{ mqttEntityId::entityMaxCellTemp,        "Max_Cell_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
 	{ mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
+	{ mqttEntityId::entityBatTemp,            "Battery_Temp",         mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
 	{ mqttEntityId::entityInverterTemp,       "Inverter_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
+	{ mqttEntityId::entityBatFaults,          "Battery_Faults",       mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
+	{ mqttEntityId::entityBatWarnings,        "Battery_Warnings",     mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
+	{ mqttEntityId::entityInverterFaults,     "Inverter_Faults",      mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
+	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
 	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
 	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
 	{ mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo }
@@ -1212,16 +1220,6 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		result = _registerHandler->readHandledRegister(REG_SAFETY_TEST_RW_GRID_REGULATION, rs);
 #endif // DEBUG_NO_RS485
 		break;
-	case mqttEntityId::entityInverterTemp:
-#ifdef DEBUG_NO_RS485
-		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->unsignedShortValue = 2750;
-		sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * INVERTER_TEMP_MULTIPLIER);
-		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-#else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_TEMP, rs);
-#endif // DEBUG_NO_RS485
-		break;
 	case mqttEntityId::entityBatCap:
 #ifdef DEBUG_NO_RS485
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
@@ -1232,7 +1230,17 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_CAPACITY, rs);
 #endif // DEBUG_NO_RS485
 		break;
-	case mqttEntityId::entityMaxCellTemp:
+	case mqttEntityId::entityInverterTemp:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->unsignedShortValue = 2750;
+		sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * INVERTER_TEMP_MULTIPLIER);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_TEMP, rs);
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityBatTemp:
 #ifdef DEBUG_NO_RS485
 		rs->returnDataType = modbusReturnDataType::signedShort;
 		rs->signedShortValue = 2750;
@@ -1241,6 +1249,74 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #else // DEBUG_NO_RS485
 		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE, rs);
 #endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityBatFaults:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->unsignedIntValue = 0;
+		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_1, rs);
+#endif // DEBUG_NO_RS485
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		}
+		break;
+	case mqttEntityId::entityBatWarnings:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->unsignedIntValue = 1;
+		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_1, rs);
+#endif // DEBUG_NO_RS485
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		}
+		break;
+	case mqttEntityId::entityInverterFaults:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->unsignedIntValue = 0;
+		sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		{
+			unsigned int count = 0;
+			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_1_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_2_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			sprintf(rs->dataValueFormatted, "%u", count);
+		}
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entitySystemFaults:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->unsignedIntValue = 3;
+		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_SYSTEM_FAULT, rs);
+#endif // DEBUG_NO_RS485
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		}
 		break;
 	case mqttEntityId::entitySocTarget:
 #ifdef DEBUG_NO_RS485
@@ -1349,10 +1425,12 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #else // DEBUG_NO_RS485
 		result = _registerHandler->readHandledRegister(REG_GRID_METER_R_VOLTAGE_OF_A_PHASE, rs);
 #endif // DEBUG_NO_RS485
-		if (rs->unsignedShortValue > 215 && rs->unsignedShortValue < 265) {
-			strcpy(rs->dataValueFormatted, "on");
-		} else {
-			strcpy(rs->dataValueFormatted, "off");
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			if (rs->unsignedShortValue > 215 && rs->unsignedShortValue < 265) {
+				strcpy(rs->dataValueFormatted, "on");
+			} else {
+				strcpy(rs->dataValueFormatted, "off");
+			}
 		}
 		break;
 	case mqttEntityId::entityBatEnergyCharge:
@@ -1543,6 +1621,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 
 	switch (singleEntity->haClass) {
 	case homeAssistantClass::homeAssistantClassBox:
+	case homeAssistantClass::homeAssistantClassNumber:
 		sprintf(stateAddition, "\"component\": \"number\"");
 		break;
 	case homeAssistantClass::homeAssistantClassSelect:
@@ -1658,6 +1737,11 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 //		 ", \"force_update\": \"true\""
 			);
 		break;
+	case homeAssistantClass::homeAssistantClassNumber:
+		snprintf(stateAddition, sizeof(stateAddition),
+			 ", \"entity_category\": \"diagnostic\""
+			 ", \"entity_type\": \"number\"");
+		break;
 	default:
 		strcpy(stateAddition, "");
 		break;
@@ -1743,9 +1827,13 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 #ifdef DEBUG_RS485
 	case mqttEntityId::entityRs485Errors:
 	case mqttEntityId::entityRs485InvalidVals:
+#endif // DEBUG_RS485
+	case mqttEntityId::entityBatFaults:
+	case mqttEntityId::entityBatWarnings:
+	case mqttEntityId::entityInverterFaults:
+	case mqttEntityId::entitySystemFaults:
 		sprintf(stateAddition, ", \"icon\": \"mdi:alert-decagram-outline\"");
 		break;
-#endif // DEBUG_RS485
 #ifdef DEBUG_FREEMEM
 	case mqttEntityId::entityFreemem:
 		sprintf(stateAddition, ", \"icon\": \"mdi:memory\"");
@@ -1756,7 +1844,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 #endif // DEBUG_CALLBACKS
 	case mqttEntityId::entityUptime:
 	case mqttEntityId::entityBatSoc:
-	case mqttEntityId::entityMaxCellTemp:
+	case mqttEntityId::entityBatTemp:
 	case mqttEntityId::entityInverterTemp:
 	case mqttEntityId::entityGridAvail:
 		strcpy(stateAddition, "");

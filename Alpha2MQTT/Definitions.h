@@ -378,13 +378,33 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define REG_INVERTER_HOME_R_INVERTER_WARNING_1_2									0x0437	// Reserve
 #define REG_INVERTER_HOME_R_INVERTER_WARNING_2_1									0x0438	// Reserve								// 4 Bytes		// Unsigned Integer
 //#define REG_INVERTER_HOME_R_INVERTER_WARNING_2_2									0x0439	// Reserve
-#define REG_INVERTER_HOME_R_INVERTER_FAULT_1_1										0x043A	// Reserve								// 4 Bytes		// Unsigned Integer
-//#define REG_INVERTER_HOME_R_INVERTER_FAULT_1_2										0x043B	// Reserve
-#define REG_INVERTER_HOME_R_INVERTER_FAULT_2_1										0x043C	// Reserve								// 4 Bytes		// Unsigned Integer
-//#define REG_INVERTER_HOME_R_INVERTER_FAULT_2_2										0x043D	// Reserve
+#define REG_INVERTER_HOME_R_INVERTER_FAULT_1_1										0x043A	// Note 26								// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_INVERTER_FAULT_1_2										0x043B	// Note26
+#define REG_INVERTER_HOME_R_INVERTER_FAULT_2_1										0x043C	// Note 26								// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_INVERTER_FAULT_2_2										0x043D	// Note 26
 #define REG_INVERTER_HOME_R_INVERTER_TOTAL_PV_ENERGY_1								0x043E	// 0.1kWh/bit							// 4 Bytes		// Unsigned Integer
 //#define REG_INVERTER_HOME_R_INVERTER_TOTAL_PV_ENERGY_2								0x043F	// 0.1kWh/bit
 #define REG_INVERTER_HOME_R_WORKING_MODE											0x0440	// <<Note5 - INVERTER OPERATION LOOKUP>>// 2 Bytes		// Unsigned Short
+#ifdef EMS_35_36
+#define REG_INVERTER_HOME_R_INVERTER_BAT_VOLTAGE								0x0441	// 1V/bit							// 2 Bytes		// Unsigned Short
+#define REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT								0x0442	// 0.1A/bit							// 2 Bytes		// Unsigned Short
+#define REG_INVERTER_HOME_R_INVERTER_BAT_POWER									0x0443	// 1W/bit							// 2 Bytes		// Signed Short
+#define REG_INVERTER_HOME_R_INVERTER_TOTAL_REACT_POWER_1							0x0444	// 1W/bit							// 4 Bytes		// Signed Int
+//#define REG_INVERTER_HOME_R_INVERTER_TOTAL_REACT_POWER_2							0x0445	// 1W/bit
+#define REG_INVERTER_HOME_R_INVERTER_TOTAL_APPARENT_POWER_1							0x0446	// 1W/bit							// 4 Bytes		// Signed Int
+//#define REG_INVERTER_HOME_R_INVERTER_TOTAL_APPARENT_POWER_2							0x0447	// 1W/bit
+#define REG_INVERTER_HOME_R_INVERTER_FREQUENCY									0x0448	// 0.01Hz/bit							// 2 Bytes		// Unsigned Short
+#define REG_INVERTER_HOME_R_INVERTER_BACKUP_FREQUENCY								0x0449	// 0.01Hz/bit							// 2 Bytes		// Unsigned Short
+#define REG_INVERTER_HOME_R_INVERTER_POWER_FACTOR								0x044A	// 0.01/bit							// 2 Bytes		// Signed Short
+#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1								0x044B	// Note 27							// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_2								0x044C	// Note 27
+#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_1								0x044D	// Note 27							// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_2								0x044E	// Note 27
+#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_3_1								0x044F	// Reserve							// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_3_2								0x0450	// Reserve
+#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_1								0x0451	// Reserve							// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_2								0x0452	// Reserve
+#endif // EMS_35_36
 
 // Inverter Information
 																					// labelled in documentation as starting 0x0680, believe this wrong.
@@ -418,6 +438,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 // System Information
+#define REG_SYSTEM_INFO_RW_FEED_INTO_GRID_PERCENT									0x0700	// 1%/bit						// 2 Bytes		// Unsigned Short
+#define REG_SYSTEM_INFO_R_SYSTEM_FAULT											0x0701	// Note 6						// 4 Bytes		// Unsigned Integer
 #define REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH									0x0740	// 0xYYMM, 0x1109 = 2017/09				// 2 Bytes		// Unsigned Short
 #define REG_SYSTEM_INFO_RW_SYSTEM_TIME_DAY_HOUR										0x0741	// 0xDDHH, 0x1109 = 17th Day/9th Hour	// 2 Bytes		// Unsigned Short
 #define REG_SYSTEM_INFO_RW_SYSTEM_TIME_MINUTE_SECOND								0x0742	// 0xmmss, 0x1109 = 17th Min/9th Sec	// 2 Bytes		// Unsigned Short
@@ -805,7 +827,6 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 
-
 // Note8 - GRID REGULATION LOOKUP
 #define GRID_REGULATION_AL_0 0
 #define GRID_REGULATION_AL_0_DESC "VDE0126"
@@ -884,7 +905,47 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define GRID_REGULATION_AL_37 37
 #define GRID_REGULATION_AL_37_DESC "UL1741-Hawaiian"
 
+#ifdef EMS_35_36
+// Note 26: Household Inverter fault codes
+#define HOUSEHOLD_INVERTER_FAULT_1_BIT_0 0
+#define HOUSEHOLD_INVERTER_FAULT_1_BIT_0_DESC "Grid_OVP"
 
+// Note 27: Household Inverter fault extend codes
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_0 0
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_0_DESC "ac_hct_check_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_1 1
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_1_DESC "dci_consistency_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_2 2
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_2_DESC "gfci_consistency_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_3 3
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_3_DESC "relay_device_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_4 4
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_4_DESC "ac_hct_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_5 5
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_5_DESC "ground_i_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_6 6
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_6_DESC "utility_phase_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_7 7
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_7_DESC "utility_loss"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_8 8
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_8_DESC "internal_fan_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_9 9
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_9_DESC "fac_consistency_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_10 10
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_10_DESC "vac_consistency_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_11 11
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_11_DESC "phase_angle_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_12 12
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_12_DESC "dsp_communications_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_13 13
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_13_DESC "eeprom_rw_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_14 14
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_14_DESC "vac_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_15 15
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_15_DESC "fac_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_16 16
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_16_DESC "external_fan_failure"
+#endif // EMS_35_36
 
 // MQTT Subscriptions
 #define MQTT_SUB_HOMEASSISTANT "homeassistant/status"
@@ -1056,8 +1117,12 @@ enum mqttEntityId {
 	entityDispatchMode,
 	entitySocTarget,
 	entityBatCap,
-	entityMaxCellTemp,
+	entityBatTemp,
 	entityInverterTemp,
+	entityBatFaults,
+	entityBatWarnings,
+	entityInverterFaults,
+	entitySystemFaults,
 	entityGridReg,
 	entityRegNum,
 	entityRegValue
@@ -1082,7 +1147,8 @@ enum homeAssistantClass {
 	homeAssistantClassDuration,
 	homeAssistantClassInfo,
 	homeAssistantClassSelect,
-	homeAssistantClassBox
+	homeAssistantClassBox,
+	homeAssistantClassNumber
 };
 
 struct mqttState

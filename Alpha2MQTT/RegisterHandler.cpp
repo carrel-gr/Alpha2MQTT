@@ -1055,6 +1055,80 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		rs->registerCount = 1;
 		break;
 	}
+#ifdef EMS_35_36
+	case REG_INVERTER_HOME_R_INVERTER_BAT_VOLTAGE:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_BAT_POWER:
+	{
+		rs->returnDataType = modbusReturnDataType::signedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_TOTAL_REACT_POWER_1:
+	{
+		rs->returnDataType = modbusReturnDataType::signedInt;
+		rs->registerCount = 2;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_TOTAL_APPARENT_POWER_1:
+	{
+		rs->returnDataType = modbusReturnDataType::signedInt;
+		rs->registerCount = 2;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_FREQUENCY:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_BACKUP_FREQUENCY:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_POWER_FACTOR:
+	{
+		rs->returnDataType = modbusReturnDataType::signedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->registerCount = 2;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_1:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->registerCount = 2;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_3_1:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->registerCount = 2;
+		break;
+	}
+	case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_1:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->registerCount = 2;
+		break;
+	}
+#endif // EMS_35_36
 	case REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1:
 	{
 		rs->returnDataType = modbusReturnDataType::character;
@@ -1071,6 +1145,18 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::character;
 		rs->registerCount = 10;
+		break;
+	}
+	case REG_SYSTEM_INFO_RW_FEED_INTO_GRID_PERCENT:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_SYSTEM_INFO_R_SYSTEM_FAULT:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->registerCount = 2;
 		break;
 	}
 	case REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH:
@@ -3217,6 +3303,92 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			}
 			break;
 		}
+#ifdef EMS_35_36
+		case REG_INVERTER_HOME_R_INVERTER_BAT_VOLTAGE:
+		{
+			// Type: Unsigned Short
+			// 1V/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT:
+		{
+			// Type: Unsigned Short
+			// 0.1A/bit
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_BAT_POWER:
+		{
+			// Type: Signed Short
+			// 1W/bit
+			sprintf(rs->dataValueFormatted, "%d", rs->signedShortValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_TOTAL_REACT_POWER_1:
+		{
+			// Type: Signed Int
+			// 1W/bit
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_TOTAL_APPARENT_POWER_1:
+		{
+			// Type: Signed Int
+			// 1W/bit
+			sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_FREQUENCY:
+		{
+			// Type: Unsigned Short
+			// 0.01Hz/bit
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_BACKUP_FREQUENCY:
+		{
+			// Type: Unsigned Short
+			// 0.01Hz/bit
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_POWER_FACTOR:
+		{
+			// Type: Signed Short
+			// 0.01/bit
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * 0.01);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1:
+		{
+			// Type: Unsigned Int
+			// Note 27 : XXX TBD XXX
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_1:
+		{
+			// Type: Unsigned Int
+			// Note 27 : XXX TBD XXX
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_3_1:
+		{
+			// Type: Unsigned Int
+			// Reserve
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			break;
+		}
+		case REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_1:
+		{
+			// Type: Unsigned Int
+			// Reserve
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			break;
+		}
+#endif // EMS_35_36
 		case REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1:
 		{
 			// Type: Unsigned Char
@@ -3251,6 +3423,20 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		}
 
 
+		case REG_SYSTEM_INFO_RW_FEED_INTO_GRID_PERCENT:
+		{
+			// Type: Unsigned Short
+			// 1%/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_SYSTEM_INFO_R_SYSTEM_FAULT:
+		{
+			// Type: Unsigned Integer
+			// Note 6 : XXX TBD XXX
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			break;
+		}
 		case REG_SYSTEM_INFO_RW_SYSTEM_TIME_YEAR_MONTH:
 		{
 			// Type: Unsigned Short
