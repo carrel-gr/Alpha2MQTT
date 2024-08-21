@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.30";
+char _version[6] = "v2.31";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -1045,7 +1045,6 @@ mqttReconnect(void)
 {
 	bool subscribed = false;
 	char subscriptionDef[100];
-	char mqttClientName[64];
 	char line3[OLED_CHARACTER_WIDTH];
 	char line4[OLED_CHARACTER_WIDTH];
 	int tries = 0;
@@ -1070,13 +1069,8 @@ mqttReconnect(void)
 		updateOLED(false, "Connecting", line3, _version);
 		delay(100);
 
-		strlcpy(mqttClientName, DEVICE_NAME, sizeof(mqttClientName));
-#ifdef DEBUG_NO_RS485
-		strlcat(mqttClientName, "-test", sizeof(mqttClientName));
-#endif // DEBUG_NO_RS485
-
 		// Attempt to connect
-		if (_mqtt.connect(mqttClientName, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
+		if (_mqtt.connect(haUniqueId, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
 			int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 #ifdef DEBUG
 			Serial.println("Connected MQTT");

@@ -109,7 +109,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 
 // The device name is used as the MQTT base topic and presence on the network.
-// If you need more than one Alpha2MQTT on your network, give them unique names.
+// You can have more than one Alpha2MQTT on your network without changing this.
 #define DEVICE_NAME "Alpha2MQTT"
 
 // If your OLED does have an RST pin, set this.
