@@ -3,6 +3,7 @@ AlphaSniffer is a quick and dirty RS485 sniffer.  It is basically a modbus sniff
 To run this, place this device on an RS485 bus that has a master and a slave (the AlphaESS).  It will connect to your WiFi (as configured in Definitions.h) and will open a port to a server (also defined with an IP/port in Definitions.h).  It will then send copies of all RS485 traffic in both directions.
 
 You can create a very simple receiving server by running 'netcap -l -p 19999'
+or 'nc -k -l 19999 | ts "%b %d %H:%M:%.S" | tee -a .../file.log'
 
 This tool recognizes the 3 modbus message types used by Alpha:  ReadDataRegisters, WriteDataRegisters, and WriteSingleRegister
 This tool tries to determine the message direction: TX=master-to-slave, RX=slave-to-master, and UK=unknown/undetermined
