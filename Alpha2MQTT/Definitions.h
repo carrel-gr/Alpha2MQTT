@@ -48,6 +48,12 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 // Set this to true to set the "retain" flag when publishing to MQTT
 #define MQTT_RETAIN true
+// Set this to 1 or 0
+#define MQTT_SUBSCRIBE_QOS 1
+// Define this to make Home Assistant be the "authority" for OpMode.
+// When HA is the authority, then on reboot, let HA tell us what our OpMode is.
+// When HA is not the authority, then on reboot, read the ESS state and tell HA.
+#define HA_IS_OP_MODE_AUTHORITY
 
 #define DEBUG
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
@@ -60,7 +66,22 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 // The SOC Target value is a percent value.  Define MIN/MAX for HA
 #define SOC_TARGET_MAX 100
-#define SOC_TARGET_MIN 10
+#define SOC_TARGET_MIN 30
+
+// Set your inverters MAX power output and MAX charge/discharge rates
+// MAX power is the value that AlphaESS rates that product at.  TBD: There should be a way to read this from the ESS.
+// MAX charge is the power you choose to charge at when mode is "SOC Control" or "PV Only"
+// MAX discharge is the max power output when in "Load Follow" mode.  (This is NOT the max when grid is offline.)
+// charge/discharge are configurable to anything less than the system rating.  TBD: Make this configurable via MQTT.
+#define INVERTER_POWER_MAX 9600
+#define INVERTER_POWER_MAX_CHARGE 9000
+#define INVERTER_POWER_MAX_DISCHARGE 9000
+#if INVERTER_POWER_MAX_CHARGE > INVERTER_POWER_MAX
+#error INVERTER_POWER_MAX_CHARGE cannot exceed INVERTER_POWER_MAX
+#endif
+#if INVERTER_POWER_MAX_DISCHARGE > INVERTER_POWER_MAX
+#error INVERTER_POWER_MAX_DISCHARGE cannot exceed INVERTER_POWER_MAX
+#endif
 
 // If values for some registers such as voltage or temperatures appear to be out by a decimal place or two, try the following:
 // Documentation declares 1V - However Presume 0.1 as result appears to reflect this.  I.e. my voltage reading was 2421, * 0.1 for 242.1
@@ -605,6 +626,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define DISPATCH_START_STOP 0
 #define DISPATCH_START_STOP_DESC "Stop"
 
+#define DISPATCH_ACTIVE_POWER_OFFSET 32000
+
 
 // Note1 - BATTERY STATUS LOOKUP
 #define BATTERY_STATUS_CHARGE0_DISCHARGE0 0
@@ -947,6 +970,17 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_16_DESC "external_fan_failure"
 #endif // EMS_35_36
 
+// Note 28: Battery Warning
+#define BATTERY_WARNING_BIT_0 "Temperature imbalance"
+#define BATTERY_WARNING_BIT_1 "Over temperature"
+#define BATTERY_WARNING_BIT_2 "Discharge low temperature"
+#define BATTERY_WARNING_BIT_3 "Charge low temperature"
+#define BATTERY_WARNING_BIT_4 "Discharge over current"
+#define BATTERY_WARNING_BIT_5 "Charge over current"
+#define BATTERY_WARNING_BIT_6 "Cell over voltage"
+#define BATTERY_WARNING_BIT_7 "Cell low voltage"
+#define BATTERY_WARNING_BIT_8 "No soc calibration"
+
 // MQTT Subscriptions
 #define MQTT_SUB_HOMEASSISTANT "homeassistant/status"
 
@@ -1051,10 +1085,12 @@ enum modbusRequestAndResponseStatusValues
 #define MAX_FORMATTED_DATA_VALUE_LENGTH 129
 #define MAX_DATA_TYPE_DESC_LENGTH 20
 #define MAX_FORMATTED_DATE_LENGTH 21
+#define OLED_CHARACTER_WIDTH_LARGE 21
+#define OLED_CHARACTER_WIDTH_SMALL 11
 #ifdef LARGE_DISPLAY
-#define OLED_CHARACTER_WIDTH 21
+#define OLED_CHARACTER_WIDTH OLED_CHARACTER_WIDTH_LARGE
 #else // LARGE_DISPLAY
-#define OLED_CHARACTER_WIDTH 11
+#define OLED_CHARACTER_WIDTH OLED_CHARACTER_WIDTH_SMALL
 #endif // LARGE_DISPLAY
 
 // This is the request and return object for the sendModbus() function.
@@ -1068,7 +1104,7 @@ struct modbusRequestAndResponse
 	uint8_t functionCode = 0;
 
 	char statusMqttMessage[MAX_MQTT_STATUS_LENGTH] = MODBUS_REQUEST_AND_RESPONSE_PREPROCESSING_MQTT_DESC;
-	char displayMessage[OLED_CHARACTER_WIDTH] = MODBUS_REQUEST_AND_RESPONSE_PREPROCESSING_DISPLAY_DESC;
+	char displayMessage[OLED_CHARACTER_WIDTH_SMALL] = MODBUS_REQUEST_AND_RESPONSE_PREPROCESSING_DISPLAY_DESC;
 
 	// These variables will be set by the sending process
 	uint8_t registerCount = 0;
@@ -1114,8 +1150,7 @@ enum mqttEntityId {
 	entityGridEnergyFrom,
 	entityPvPwr,
 	entityPvEnergy,
-	entityDispatchMode,
-	entitySocTarget,
+	entityOpMode,
 	entityBatCap,
 	entityBatTemp,
 	entityInverterTemp,
@@ -1151,6 +1186,18 @@ enum homeAssistantClass {
 	homeAssistantClassNumber
 };
 
+enum opMode {
+	opModeIdle,
+	opModePvCharge,
+	opModeCharge,
+	opModeLoadFollow
+};
+
+#define OP_MODE_DESC_IDLE		"Idle"
+#define OP_MODE_DESC_PV_CHARGE		"PV Charge"
+#define OP_MODE_DESC_CHARGE		"Charge"
+#define OP_MODE_DESC_LOAD_FOLLOW	"Load Follow"
+
 struct mqttState
 {
 	mqttEntityId entityId;
@@ -1160,7 +1207,5 @@ struct mqttState
 	bool subscribe;
 	homeAssistantClass haClass;
 };
-
-void getDispatchModeDesc(char *dest, uint16_t mode);
 
 #endif // ! _Definitions_h
