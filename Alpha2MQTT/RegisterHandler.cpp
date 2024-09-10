@@ -2560,9 +2560,33 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		case REG_BATTERY_HOME_R_BATTERY_WARNING_1:
 		{
 			// Type: Unsigned Integer
-			// Reserve
-			// Zero for me, or warning is actually zero, so I cannot confirm
-			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			// <<Note28 - Battery Warning>>
+			if (rs->unsignedIntValue == 0) {
+				strcpy(rs->dataValueFormatted, "0");
+			} else {
+				const char *warning;
+				if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
+					warning = BATTERY_WARNING_BIT_0;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
+					warning = BATTERY_WARNING_BIT_1;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
+					warning = BATTERY_WARNING_BIT_2;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
+					warning = BATTERY_WARNING_BIT_3;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
+					warning = BATTERY_WARNING_BIT_4;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
+					warning = BATTERY_WARNING_BIT_5;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
+					warning = BATTERY_WARNING_BIT_6;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
+					warning = BATTERY_WARNING_BIT_7;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
+					warning = BATTERY_WARNING_BIT_8;
+				else
+					warning = "Unknown";
+				snprintf(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), "0x%lX - %s", rs->unsignedIntValue, warning);
+			}
 			break;
 		}
 
@@ -2570,72 +2594,78 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// <<Note4 - BATTERY ERROR LOOKUP>>
-			if (rs->unsignedIntValue == 0)
+			if (rs->unsignedIntValue == 0) {
 				strcpy(rs->dataValueFormatted, "0");
-			else if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_0);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_1);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_2);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_3);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_4);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_5);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_6);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_7);
-			else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_8);
-			else if (rs->unsignedIntValue & 0b00000000000000000000001000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_9);
-			else if (rs->unsignedIntValue & 0b00000000000000000000010000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_10);
-			else if (rs->unsignedIntValue & 0b00000000000000000000100000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_11);
-			else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_12);
-			else if (rs->unsignedIntValue & 0b00000000000000000010000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_13);
-			else if (rs->unsignedIntValue & 0b00000000000000000100000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_14);
-			else if (rs->unsignedIntValue & 0b00000000000000001000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_15);
-			else if (rs->unsignedIntValue & 0b00000000000000010000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_16);
-			else if (rs->unsignedIntValue & 0b00000000000000100000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_17);
-			else if (rs->unsignedIntValue & 0b00000000000001000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_18);
-			else if (rs->unsignedIntValue & 0b00000000000010000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_19);
-			else if (rs->unsignedIntValue & 0b00000000000100000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_20);
-			else if (rs->unsignedIntValue & 0b00000000001000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_21);
-			else if (rs->unsignedIntValue & 0b00000000010000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_22);
-			else if (rs->unsignedIntValue & 0b00000000100000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_23);
-			else if (rs->unsignedIntValue & 0b00000001000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_24);
-			else if (rs->unsignedIntValue & 0b00000010000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_25);
-			else if (rs->unsignedIntValue & 0b00000100000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_26);
-			else if (rs->unsignedIntValue & 0b00001000000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_27);
-			else if (rs->unsignedIntValue & 0b00010000000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_28);
-			else if (rs->unsignedIntValue & 0b00100000000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_29);
-			else if (rs->unsignedIntValue & 0b01000000000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_30);
-			else if (rs->unsignedIntValue & 0b10000000000000000000000000000000)
-				strcpy(rs->dataValueFormatted, BATTERY_ERROR_BIT_31);
+			} else {
+				const char *fault;
+				if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
+					fault = BATTERY_ERROR_BIT_0;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
+					fault = BATTERY_ERROR_BIT_1;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
+					fault = BATTERY_ERROR_BIT_2;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
+					fault = BATTERY_ERROR_BIT_3;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
+					fault = BATTERY_ERROR_BIT_4;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
+					fault = BATTERY_ERROR_BIT_5;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
+					fault = BATTERY_ERROR_BIT_6;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
+					fault = BATTERY_ERROR_BIT_7;
+				else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
+					fault = BATTERY_ERROR_BIT_8;
+				else if (rs->unsignedIntValue & 0b00000000000000000000001000000000)
+					fault = BATTERY_ERROR_BIT_9;
+				else if (rs->unsignedIntValue & 0b00000000000000000000010000000000)
+					fault = BATTERY_ERROR_BIT_10;
+				else if (rs->unsignedIntValue & 0b00000000000000000000100000000000)
+					fault = BATTERY_ERROR_BIT_11;
+				else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
+					fault = BATTERY_ERROR_BIT_12;
+				else if (rs->unsignedIntValue & 0b00000000000000000010000000000000)
+					fault = BATTERY_ERROR_BIT_13;
+				else if (rs->unsignedIntValue & 0b00000000000000000100000000000000)
+					fault = BATTERY_ERROR_BIT_14;
+				else if (rs->unsignedIntValue & 0b00000000000000001000000000000000)
+					fault = BATTERY_ERROR_BIT_15;
+				else if (rs->unsignedIntValue & 0b00000000000000010000000000000000)
+					fault = BATTERY_ERROR_BIT_16;
+				else if (rs->unsignedIntValue & 0b00000000000000100000000000000000)
+					fault = BATTERY_ERROR_BIT_17;
+				else if (rs->unsignedIntValue & 0b00000000000001000000000000000000)
+					fault = BATTERY_ERROR_BIT_18;
+				else if (rs->unsignedIntValue & 0b00000000000010000000000000000000)
+					fault = BATTERY_ERROR_BIT_19;
+				else if (rs->unsignedIntValue & 0b00000000000100000000000000000000)
+					fault = BATTERY_ERROR_BIT_20;
+				else if (rs->unsignedIntValue & 0b00000000001000000000000000000000)
+					fault = BATTERY_ERROR_BIT_21;
+				else if (rs->unsignedIntValue & 0b00000000010000000000000000000000)
+					fault = BATTERY_ERROR_BIT_22;
+				else if (rs->unsignedIntValue & 0b00000000100000000000000000000000)
+					fault = BATTERY_ERROR_BIT_23;
+				else if (rs->unsignedIntValue & 0b00000001000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_24;
+				else if (rs->unsignedIntValue & 0b00000010000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_25;
+				else if (rs->unsignedIntValue & 0b00000100000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_26;
+				else if (rs->unsignedIntValue & 0b00001000000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_27;
+				else if (rs->unsignedIntValue & 0b00010000000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_28;
+				else if (rs->unsignedIntValue & 0b00100000000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_29;
+				else if (rs->unsignedIntValue & 0b01000000000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_30;
+				else if (rs->unsignedIntValue & 0b10000000000000000000000000000000)
+					fault = BATTERY_ERROR_BIT_31;
+				else
+					fault = "Unknown"; // Shouldn't happen.
+				snprintf(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), "0x%lX - %s", rs->unsignedIntValue, fault);
+			}
 			break;
 		}
 
@@ -3858,7 +3888,64 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// <<Note7 - DISPATCH MODE LOOKUP>>
-			getDispatchModeDesc(rs->dataValueFormatted, rs->unsignedShortValue);
+			switch (rs->unsignedShortValue)
+			{
+			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC);
+				break;
+			}
+			case DISPATCH_MODE_ECO_MODE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_ECO_MODE_DESC);
+				break;
+			}
+			case DISPATCH_MODE_FCAS_MODE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_FCAS_MODE_DESC);
+				break;
+			}
+			case DISPATCH_MODE_LOAD_FOLLOWING:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_LOAD_FOLLOWING_DESC);
+				break;
+			}
+			case DISPATCH_MODE_MAXIMISE_OUTPUT:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_MAXIMISE_OUTPUT_DESC);
+				break;
+			}
+			case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC);
+				break;
+			}
+			case DISPATCH_MODE_NORMAL_MODE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_NORMAL_MODE_DESC);
+				break;
+			}
+			case DISPATCH_MODE_OPTIMISE_CONSUMPTION:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC);
+				break;
+			}
+			case DISPATCH_MODE_PV_POWER_SETTING:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_PV_POWER_SETTING_DESC);
+				break;
+			}
+			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
+				break;
+			}
+			default:
+			{
+				strcpy(rs->dataValueFormatted, "Unknown");
+				break;
+			}
+			}
 			break;
 		}
 		case REG_DISPATCH_RW_DISPATCH_SOC:
@@ -3918,106 +4005,115 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Integer
 			// <<Note6 - SYSTEM ERROR LOOKUP>>
-			if (_serialNumberPrefix[0] == 'A' && _serialNumberPrefix[1] == 'L')
-			{
-				if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_0);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_1);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_2);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_3);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_4);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_5);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_6);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_7);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_8);
-				else if (rs->unsignedIntValue & 0b00000000000000000000001000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_9);
-				else if (rs->unsignedIntValue & 0b00000000000000000000010000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_10);
-				else if (rs->unsignedIntValue & 0b00000000000000000000100000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_11);
-				else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_12);
-				else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_13);
-				else if (rs->unsignedIntValue & 0b00000000000000000010000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_14);
-				else if (rs->unsignedIntValue & 0b00000000000000000100000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_15);
-				else if (rs->unsignedIntValue & 0b00000000000000001000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AL_BIT_16);
-				break;
-			}
-			else if (_serialNumberPrefix[0] == 'A' && _serialNumberPrefix[1] == 'E')
-			{
-				if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_0);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_1);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_2);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_3);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_4);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_5);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_6);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_7);
-				else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_8);
-				else if (rs->unsignedIntValue & 0b00000000000000000000001000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_9);
-				else if (rs->unsignedIntValue & 0b00000000000000000000010000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_10);
-				else if (rs->unsignedIntValue & 0b00000000000000000000100000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_11);
-				else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_12);
-				else if (rs->unsignedIntValue & 0b00000000000000000010000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_13);
-				else if (rs->unsignedIntValue & 0b00000000000000000100000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_14);
-				else if (rs->unsignedIntValue & 0b00000000000000001000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_15);
-				else if (rs->unsignedIntValue & 0b00000000000000010000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_16);
-				else if (rs->unsignedIntValue & 0b00000000000000100000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_17);
-				else if (rs->unsignedIntValue & 0b00000000000001000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_18);
-				else if (rs->unsignedIntValue & 0b00000000000010000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_19);
-				else if (rs->unsignedIntValue & 0b00000000000100000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_20);
-				else if (rs->unsignedIntValue & 0b00000000001000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_21);
-				else if (rs->unsignedIntValue & 0b00000000010000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_22);
-				else if (rs->unsignedIntValue & 0b00000000100000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_23);
-				else if (rs->unsignedIntValue & 0b00000001000000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_24);
-				else if (rs->unsignedIntValue & 0b00000010000000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_25);
-				else if (rs->unsignedIntValue & 0b00000100000000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_26);
-				else if (rs->unsignedIntValue & 0b00001000000000000000000000000000)
-					strcpy(rs->dataValueFormatted, SYSTEM_ERROR_AE_BIT_27);
-				break;
-			}
-			else
-			{
+			if (_serialNumberPrefix[0] == 'A' && _serialNumberPrefix[1] == 'L') {
+				if (rs->unsignedIntValue == 0) {
+					strcpy(rs->dataValueFormatted, "0");
+				} else {
+					const char *error;
+					if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
+						error = SYSTEM_ERROR_AL_BIT_0;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
+						error = SYSTEM_ERROR_AL_BIT_1;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
+						error = SYSTEM_ERROR_AL_BIT_2;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
+						error = SYSTEM_ERROR_AL_BIT_3;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
+						error = SYSTEM_ERROR_AL_BIT_4;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
+						error = SYSTEM_ERROR_AL_BIT_5;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
+						error = SYSTEM_ERROR_AL_BIT_6;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
+						error = SYSTEM_ERROR_AL_BIT_7;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
+						error = SYSTEM_ERROR_AL_BIT_8;
+					else if (rs->unsignedIntValue & 0b00000000000000000000001000000000)
+						error = SYSTEM_ERROR_AL_BIT_9;
+					else if (rs->unsignedIntValue & 0b00000000000000000000010000000000)
+						error = SYSTEM_ERROR_AL_BIT_10;
+					else if (rs->unsignedIntValue & 0b00000000000000000000100000000000)
+						error = SYSTEM_ERROR_AL_BIT_11;
+					else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
+						error = SYSTEM_ERROR_AL_BIT_12;
+					else if (rs->unsignedIntValue & 0b00000000000000000010000000000000)
+						error = SYSTEM_ERROR_AL_BIT_13;
+					else if (rs->unsignedIntValue & 0b00000000000000000100000000000000)
+						error = SYSTEM_ERROR_AL_BIT_14;
+					else if (rs->unsignedIntValue & 0b00000000000000001000000000000000)
+						error = SYSTEM_ERROR_AL_BIT_15;
+					else if (rs->unsignedIntValue & 0b00000000000000010000000000000000)
+						error = SYSTEM_ERROR_AL_BIT_16;
+					else
+						error = "Unknown";
+					snprintf(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), "0x%lX - %s", rs->unsignedIntValue, error);
+				}
+			} else if (_serialNumberPrefix[0] == 'A' && _serialNumberPrefix[1] == 'E') {
+				if (rs->unsignedIntValue == 0) {
+					strcpy(rs->dataValueFormatted, "0");
+				} else {
+					const char *error;
+					if (rs->unsignedIntValue & 0b00000000000000000000000000000001)
+						error = SYSTEM_ERROR_AE_BIT_0;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000000010)
+						error = SYSTEM_ERROR_AE_BIT_1;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000000100)
+						error = SYSTEM_ERROR_AE_BIT_2;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000001000)
+						error = SYSTEM_ERROR_AE_BIT_3;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000010000)
+						error = SYSTEM_ERROR_AE_BIT_4;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000000100000)
+						error = SYSTEM_ERROR_AE_BIT_5;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000001000000)
+						error = SYSTEM_ERROR_AE_BIT_6;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000010000000)
+						error = SYSTEM_ERROR_AE_BIT_7;
+					else if (rs->unsignedIntValue & 0b00000000000000000000000100000000)
+						error = SYSTEM_ERROR_AE_BIT_8;
+					else if (rs->unsignedIntValue & 0b00000000000000000000001000000000)
+						error = SYSTEM_ERROR_AE_BIT_9;
+					else if (rs->unsignedIntValue & 0b00000000000000000000010000000000)
+						error = SYSTEM_ERROR_AE_BIT_10;
+					else if (rs->unsignedIntValue & 0b00000000000000000000100000000000)
+						error = SYSTEM_ERROR_AE_BIT_11;
+					else if (rs->unsignedIntValue & 0b00000000000000000001000000000000)
+						error = SYSTEM_ERROR_AE_BIT_12;
+					else if (rs->unsignedIntValue & 0b00000000000000000010000000000000)
+						error = SYSTEM_ERROR_AE_BIT_13;
+					else if (rs->unsignedIntValue & 0b00000000000000000100000000000000)
+						error = SYSTEM_ERROR_AE_BIT_14;
+					else if (rs->unsignedIntValue & 0b00000000000000001000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_15;
+					else if (rs->unsignedIntValue & 0b00000000000000010000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_16;
+					else if (rs->unsignedIntValue & 0b00000000000000100000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_17;
+					else if (rs->unsignedIntValue & 0b00000000000001000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_18;
+					else if (rs->unsignedIntValue & 0b00000000000010000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_19;
+					else if (rs->unsignedIntValue & 0b00000000000100000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_20;
+					else if (rs->unsignedIntValue & 0b00000000001000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_21;
+					else if (rs->unsignedIntValue & 0b00000000010000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_22;
+					else if (rs->unsignedIntValue & 0b00000000100000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_23;
+					else if (rs->unsignedIntValue & 0b00000001000000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_24;
+					else if (rs->unsignedIntValue & 0b00000010000000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_25;
+					else if (rs->unsignedIntValue & 0b00000100000000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_26;
+					else if (rs->unsignedIntValue & 0b00001000000000000000000000000000)
+						error = SYSTEM_ERROR_AE_BIT_27;
+					else
+						error = "Unknown";
+					snprintf(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), "0x%lX - %s", rs->unsignedIntValue, error);
+				}
+			} else {
 				strcpy(rs->dataValueFormatted, "Unknown");
 			}
 			break;
