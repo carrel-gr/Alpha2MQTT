@@ -1380,6 +1380,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 				count += std::popcount(rs->unsignedIntValue);
 				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_2_1, rs);
 			}
+#ifdef EMS_35_36
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				count += std::popcount(rs->unsignedIntValue);
 				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1, rs);
@@ -1396,6 +1397,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 				count += std::popcount(rs->unsignedIntValue);
 				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_1, rs);
 			}
+#endif // EMS_35_36
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				count += std::popcount(rs->unsignedIntValue);
 			}
