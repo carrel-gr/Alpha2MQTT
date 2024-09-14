@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.40";
+char _version[6] = "v2.41";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -135,6 +135,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityBatFaults,          "Battery_Faults",       mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
 	{ mqttEntityId::entityBatWarnings,        "Battery_Warnings",     mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
 	{ mqttEntityId::entityInverterFaults,     "Inverter_Faults",      mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
+	{ mqttEntityId::entityInverterWarnings,   "Inverter_Warnings",    mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
 	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassNumber },
 	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
 	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
@@ -1290,11 +1291,39 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_1, rs);
-#endif // DEBUG_NO_RS485
-		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-			sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		{
+			unsigned int count = 0;
+			result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_1_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_2_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_3_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_4_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_5_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_FAULT_6_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			sprintf(rs->dataValueFormatted, "%u", count);
 		}
+#endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityBatWarnings:
 #ifdef DEBUG_NO_RS485
@@ -1303,11 +1332,39 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_1, rs);
-#endif // DEBUG_NO_RS485
-		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-			sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		{
+			unsigned int count = 0;
+			result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_1_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_2_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_3_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_4_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_5_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_WARNING_6_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			sprintf(rs->dataValueFormatted, "%u", count);
 		}
+#endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityInverterFaults:
 #ifdef DEBUG_NO_RS485
@@ -1321,16 +1378,45 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_1_1, rs);
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_2_1, rs);
 			}
-			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_2_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_3_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_1, rs);
+			}
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				count += std::popcount(rs->unsignedIntValue);
 			}
-			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_1_1, rs);
+			sprintf(rs->dataValueFormatted, "%u", count);
+		}
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityInverterWarnings:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->unsignedIntValue = 22;
+		sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		{
+			unsigned int count = 0;
+			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_WARNING_1_1, rs);
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_WARNING_2_1, rs);
 			}
-			result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_2_1, rs);
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 				count += std::popcount(rs->unsignedIntValue);
 			}
@@ -1345,11 +1431,19 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_SYSTEM_FAULT, rs);
-#endif // DEBUG_NO_RS485
-		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-			sprintf(rs->dataValueFormatted, "%u", std::popcount(rs->unsignedIntValue));
+		{
+			unsigned int count = 0;
+			result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_SYSTEM_FAULT, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+				result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_FAULT_1, rs);
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				count += std::popcount(rs->unsignedIntValue);
+			}
+			sprintf(rs->dataValueFormatted, "%u", count);
 		}
+#endif // DEBUG_NO_RS485
 		break;
 //	case mqttEntityId::entitySocTarget:
 //#ifdef DEBUG_NO_RS485
@@ -1858,6 +1952,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityBatFaults:
 	case mqttEntityId::entityBatWarnings:
 	case mqttEntityId::entityInverterFaults:
+	case mqttEntityId::entityInverterWarnings:
 	case mqttEntityId::entitySystemFaults:
 		sprintf(stateAddition, ", \"icon\": \"mdi:alert-decagram-outline\"");
 		break;
@@ -2612,6 +2707,7 @@ getRetain(enum mqttEntityId entityId)
 	case entityBatFaults:
 	case entityBatWarnings:
 	case entityInverterFaults:
+	case entityInverterWarnings:
 	case entitySystemFaults:
 	case entityGridReg:
 	case entityRegNum:

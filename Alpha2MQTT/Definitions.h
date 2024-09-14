@@ -69,7 +69,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define SOC_TARGET_MIN 30
 
 // Set your inverters MAX power output and MAX charge/discharge rates
-// MAX power is the value that AlphaESS rates that product at.  TBD: There should be a way to read this from the ESS.
+// MAX power is the value that AlphaESS rates that product at.
+//	TBD: There should be a way to read this from the ESS.
+//	It appears that for the SMILE-SP(B) the 2nd-5th digits of the inverter (not EMS) serial number, are the max power
+//	e.g. "79600ABP225R0061"  <- max power is 9600
 // MAX charge is the power you choose to charge at when mode is "SOC Control" or "PV Only"
 // MAX discharge is the max power output when in "Load Follow" mode.  (This is NOT the max when grid is offline.)
 // charge/discharge are configurable to anything less than the system rating.  TBD: Make this configurable via MQTT.
@@ -1157,6 +1160,7 @@ enum mqttEntityId {
 	entityBatFaults,
 	entityBatWarnings,
 	entityInverterFaults,
+	entityInverterWarnings,
 	entitySystemFaults,
 	entityGridReg,
 	entityRegNum,
