@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.41";
+char _version[6] = "v2.42";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -115,8 +115,12 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityTxPower,            "A2M_TX_Power",         mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
 	{ mqttEntityId::entityWifiRecon,          "A2M_reconnects",       mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassInfo },
 #endif // DEBUIG_WIFI
-	{ mqttEntityId::entityUptime,             "A2M_uptime",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassDuration },
-	{ mqttEntityId::entityVersion,            "A2M_version",          mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
+	{ mqttEntityId::entityA2MUptime,          "A2M_uptime",           mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassDuration },
+	{ mqttEntityId::entityA2MVersion,         "A2M_version",          mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
+	{ mqttEntityId::entityInverterVersion,    "Inverter_version",     mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
+	{ mqttEntityId::entityInverterSn,         "Inverter_SN",          mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
+	{ mqttEntityId::entityEmsVersion,         "EMS_version",          mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
+	{ mqttEntityId::entityEmsSn,              "EMS_SN",               mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
 	{ mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassBattery },
 	{ mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::updateFreqTenSec,  false, homeAssistantClass::homeAssistantClassPower },
 	{ mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::updateFreqOneMin,  false, homeAssistantClass::homeAssistantClassEnergy },
@@ -1623,17 +1627,75 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		break;
 #endif // DEBUG_FREEMEM
-	case mqttEntityId::entityUptime:
+	case mqttEntityId::entityA2MUptime:
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->unsignedIntValue = getUptimeSeconds();
 		sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		break;
-	case mqttEntityId::entityVersion:
+	case mqttEntityId::entityA2MVersion:
 		rs->returnDataType = modbusReturnDataType::character;
 		strcpy(rs->characterValue, _version);
 		sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+		break;
+	case mqttEntityId::entityInverterSn:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::character;
+		strcpy(rs->characterValue, "fake-inv-sn");
+		sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_INVERTER_INFO_R_SERIAL_NUMBER_1, rs);
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityInverterVersion:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::character;
+		strcpy(rs->characterValue, "fake.inv.ver");
+		sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1, rs);
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			char master[64], slave[64];
+			strlcpy(master, rs->dataValueFormatted, sizeof(master));
+			result = _registerHandler->readHandledRegister(REG_INVERTER_INFO_R_SLAVE_SOFTWARE_VERSION_1, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				strlcpy(slave, rs->dataValueFormatted, sizeof(slave));
+				snprintf(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), "%s-%s", master, slave);
+			}
+		}
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityEmsSn:
+		rs->returnDataType = modbusReturnDataType::character;
+		strcpy(rs->characterValue, deviceSerialNumber);
+		sprintf(rs->dataValueFormatted, "%s", deviceSerialNumber);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+		break;
+	case mqttEntityId::entityEmsVersion:
+#ifdef DEBUG_NO_RS485
+		rs->returnDataType = modbusReturnDataType::character;
+		strcpy(rs->characterValue, "fake.ems.ver");
+		sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_EMS_VERSION_HIGH, rs);
+		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+			char high[8], middle[8], low[8];
+			strlcpy(high, rs->dataValueFormatted, sizeof(high));
+			result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_EMS_VERSION_MIDDLE, rs);
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				strlcpy(middle, rs->dataValueFormatted, sizeof(middle));
+				result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_EMS_VERSION_LOW, rs);
+				if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+					strlcpy(low, rs->dataValueFormatted, sizeof(low));
+					snprintf(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), "%s.%s.%s", high, middle, low);
+				}
+			}
+		}
+#endif // DEBUG_NO_RS485
 		break;
 #ifdef DEBUG_WIFI
 	case mqttEntityId::entityRSSI:
@@ -1944,8 +2006,14 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		sprintf(stateAddition, ", \"icon\": \"mdi:wifi\"");
 		break;
 #endif // DEBUG_WIFI
-	case mqttEntityId::entityVersion:
+	case mqttEntityId::entityA2MVersion:
+	case mqttEntityId::entityInverterVersion:
+	case mqttEntityId::entityEmsVersion:
 		sprintf(stateAddition, ", \"icon\": \"mdi:numeric\"");
+		break;
+	case mqttEntityId::entityInverterSn:
+	case mqttEntityId::entityEmsSn:
+		sprintf(stateAddition, ", \"icon\": \"mdi:identifier\"");
 		break;
 #ifdef DEBUG_RS485
 	case mqttEntityId::entityRs485Errors:
@@ -1966,7 +2034,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 #ifdef DEBUG_CALLBACKS
 	case mqttEntityId::entityCallbacks:
 #endif // DEBUG_CALLBACKS
-	case mqttEntityId::entityUptime:
+	case mqttEntityId::entityA2MUptime:
 	case mqttEntityId::entityBatSoc:
 	case mqttEntityId::entityBatTemp:
 	case mqttEntityId::entityInverterTemp:
@@ -2689,9 +2757,13 @@ getRetain(enum mqttEntityId entityId)
 	case entityRs485Errors:
 	case entityRs485InvalidVals:
 #endif // DEBUG_RS485
-	case entityUptime:
+	case entityA2MUptime:
 		return false;
-	case entityVersion:
+	case entityA2MVersion:
+	case entityInverterVersion:
+	case entityInverterSn:
+	case entityEmsVersion:
+	case entityEmsSn:
 	case entityBatSoc:
 	case entityBatPwr:
 	case entityBatEnergyCharge:
