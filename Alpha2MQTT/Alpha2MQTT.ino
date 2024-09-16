@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.42";
+char _version[6] = "v2.43";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -572,15 +572,20 @@ updateOLED(bool justStatus, const char* line2, const char* line3, const char* li
 	}
 
 #ifdef LARGE_DISPLAY
-	// There's 20 characters we can play with, width wise.
-	snprintf(line1Contents, sizeof(line1Contents), "A2M  %c%c%c  RSSI: %d",
-		 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), WiFi.RSSI() );
+	{
+		int8_t rssi = WiFi.RSSI();
+		// There's 20 characters we can play with, width wise.
+		snprintf(line1Contents, sizeof(line1Contents), "A2M  %c%c%c         %3hhd",
+			 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), rssi );
+		_display.println(line1Contents);
+		printWifiBars(rssi);
+	}
 #else // LARGE_DISPLAY
 	// There's ten characters we can play with, width wise.
 	snprintf(line1Contents, sizeof(line1Contents), "%s%c%c%c", "A2M    ",
 		 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
-#endif // LARGE_DISPLAY
 	_display.println(line1Contents);
+#endif // LARGE_DISPLAY
 
 	// Next line
 	_display.setCursor(0, CURSOR_LINE_2);
@@ -610,10 +615,48 @@ updateOLED(bool justStatus, const char* line2, const char* line3, const char* li
 	_display.display();
 }
 
-
-
-
-
+#define WIFI_X_POS 75 //102
+void
+printWifiBars(int rssi)
+{
+	if (rssi >= -55) { 
+		_display.fillRect((WIFI_X_POS + 0),7,4,1, WHITE);
+		_display.fillRect((WIFI_X_POS + 5),6,4,2, WHITE);
+		_display.fillRect((WIFI_X_POS + 10),4,4,4, WHITE);
+		_display.fillRect((WIFI_X_POS + 15),2,4,6, WHITE);
+		_display.fillRect((WIFI_X_POS + 20),0,4,8, WHITE);
+	} else if (rssi < -55 && rssi > -65) {
+		_display.fillRect((WIFI_X_POS + 0),7,4,1, WHITE);
+		_display.fillRect((WIFI_X_POS + 5),6,4,2, WHITE);
+		_display.fillRect((WIFI_X_POS + 10),4,4,4, WHITE);
+		_display.fillRect((WIFI_X_POS + 15),2,4,6, WHITE);
+		_display.drawRect((WIFI_X_POS + 20),0,4,8, WHITE);
+	} else if (rssi < -65 && rssi > -75) {
+		_display.fillRect((WIFI_X_POS + 0),8,4,1, WHITE);
+		_display.fillRect((WIFI_X_POS + 5),6,4,2, WHITE);
+		_display.fillRect((WIFI_X_POS + 10),4,4,4, WHITE);
+		_display.drawRect((WIFI_X_POS + 15),2,2,6, WHITE);
+		_display.drawRect((WIFI_X_POS + 20),0,4,8, WHITE);
+	} else if (rssi < -75 && rssi > -85) {
+		_display.fillRect((WIFI_X_POS + 0),8,4,1, WHITE);
+		_display.fillRect((WIFI_X_POS + 5),6,4,2, WHITE);
+		_display.drawRect((WIFI_X_POS + 10),4,4,4, WHITE);
+		_display.drawRect((WIFI_X_POS + 15),2,4,6, WHITE);
+		_display.drawRect((WIFI_X_POS + 20),0,4,8, WHITE);
+	} else if (rssi < -85 && rssi > -96) {
+		_display.fillRect((WIFI_X_POS + 0),8,4,1, WHITE);
+		_display.drawRect((WIFI_X_POS + 5),6,4,2, WHITE);
+		_display.drawRect((WIFI_X_POS + 10),4,4,4, WHITE);
+		_display.drawRect((WIFI_X_POS + 15),2,4,6, WHITE);
+		_display.drawRect((WIFI_X_POS + 20),0,4,8, WHITE);
+	} else {
+		_display.drawRect((WIFI_X_POS + 0),8,4,1, WHITE);
+		_display.drawRect((WIFI_X_POS + 5),6,4,2, WHITE);
+		_display.drawRect((WIFI_X_POS + 10),4,4,4, WHITE);
+		_display.drawRect((WIFI_X_POS + 15),2,4,6, WHITE);
+		_display.drawRect((WIFI_X_POS + 20),0,4,8, WHITE);
+	}
+}
 
 
 
