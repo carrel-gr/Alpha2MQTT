@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.44";
+char _version[6] = "v2.45";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -62,7 +62,6 @@ char* _mqttPayload;
 
 bool resendHaData = false;
 bool resendAllData = false;
-bool recheckOpData = false;
 
 // OLED variables
 char _oledOperatingIndicator = '*';
@@ -91,10 +90,23 @@ uint32_t badCallbacks = 0;
 uint32_t rs485Errors = 0;
 uint32_t rs485InvalidValues = 0;
 #endif // DEBUG_RS485
-opMode runningOpMode = opMode::opModeIdle;
-bool readyToUseOpMode = false;
-uint16_t socTarget = SOC_TARGET_MAX / DISPATCH_SOC_MULTIPLIER;
-bool readyToUseSocTarget = false;
+#ifdef DEBUG_OPS
+uint32_t opCounter = 0;
+#endif // DEBUG_OPS
+
+struct {
+	opMode   a2mOpMode = opMode::opModeIdle;
+	bool     a2mReadyToUseOpMode = false;
+	uint16_t a2mSocTarget = SOC_TARGET_MAX;   // Stored as percent (0-100)
+	bool     a2mReadyToUseSocTarget = false;
+//	int32_t  a2mActivePower = DISPATCH_ACTIVE_POWER_OFFSET;  // Currently hard-coded and not set by HA.
+
+	uint16_t essDispatchStart = DISPATCH_START_STOP;
+	uint16_t essDispatchMode = 0;
+	int32_t  essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
+	uint16_t essDispatchSoc = 0;      // Stored as ESS register value. (percent / 0.4)
+	uint16_t essBatterySoc = 0;       // Stored as ESS register value. (percent / 0.1)
+} opData;
 
 /*
  * Home Assistant auto-discovered values
@@ -316,15 +328,17 @@ void setup()
 	mqttReconnect();
 	sendHaData();
 	resendHaData = true;  // Tell loop() to do it again
+
+#ifndef HA_IS_OP_MODE_AUTHORITY
+	setA2mOpMode(getA2mOpModeFromEss());
+	setA2mSocTarget(getA2mSocTargetFromEss());
+#endif // ! HA_IS_OP_MODE_AUTHORITY
+
+	while (!readEssOpData()) {
+		// loop until we get one clean read
+	}
 	sendData();
 	resendAllData = true; // Tell sendData() to send everything again
-#ifndef HA_IS_OP_MODE_AUTHORITY
-	runningOpMode = readOpMode();
-	readyToUseOpMode = true;
-	socTarget = readSocTarget();
-	readyToUseSocTarget = true;
-	recheckOpData = true;
-#endif // ! HA_IS_OP_MODE_AUTHORITY
 
 	updateOLED(false, "", "", _version);
 }
@@ -368,14 +382,24 @@ loop()
 		sendHaData();
 	}
 
-	// Read and transmit all entity data to MQTT
-	sendData();
+	if (readEssOpData()) {
+		if (getUptimeSeconds() > 120) {  // After 2 minutes, set these even if we didn't get a callback
+			if (!opData.a2mReadyToUseOpMode) {
+				setA2mOpMode(getA2mOpModeFromEss());
+			}
+			if (!opData.a2mReadyToUseSocTarget) {
+				setA2mSocTarget(getA2mSocTargetFromEss());
+			}
+		}
+		// Read and transmit all entity data to MQTT
+		sendData();
 	
-	// Check the Operational mode.  checkOpmode() handles rate limiting.
-	if (readyToUseOpMode && !checkOpMode()) {
-		setOpMode();
-		sendDataFromMqttState(lookupEntity(mqttEntityId::entityOpMode), false);
-		sendDataFromMqttState(lookupEntity(mqttEntityId::entitySocTarget), false);
+		// Check the Operational mode.
+		if (!checkEssOpMode()) {
+			setEssOpMode();
+			sendDataFromMqttState(lookupEntity(mqttEntityId::entityOpMode), false);
+			sendDataFromMqttState(lookupEntity(mqttEntityId::entitySocTarget), false);
+		}
 	}
 
 	// Force Restart?
@@ -783,7 +807,7 @@ updateRunstate()
 
 #ifdef DEBUG_NO_RS485
 		strcpy(line2, "NO RS485");
-		strcpy(line3, "");
+		snprintf(line3, sizeof(line3), "Bat: %0.1f%% %0.1f%%", opData.essDispatchSoc * DISPATCH_SOC_MULTIPLIER, opData.essBatterySoc * BATTERY_SOC_MULTIPLIER);
 #else // DEBUG_NO_RS485
 		// Line 2: Get Dispatch Start - Is Alpha2MQTT controlling the inverter?
 		request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
@@ -874,17 +898,7 @@ updateRunstate()
 			rs485Errors++;
 #endif // DEBUG_RS485
 		} else {
-			int batPower = response.signedShortValue;
-
-			request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
-			if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				snprintf(line3, sizeof(line3), "SOC Err: %s", response.displayMessage);
-#ifdef DEBUG_RS485
-				rs485Errors++;
-#endif // DEBUG_RS485
-			} else {
-				snprintf(line3, sizeof(line3), "Bat: %4dW  %0.02f%%", batPower, response.unsignedShortValue * 0.1);
-			}
+			snprintf(line3, sizeof(line3), "Bat: %4dW  %0.02f%%", response.signedShortValue, opData.essBatterySoc * BATTERY_SOC_MULTIPLIER);
 		}
 #ifdef DEBUG
 		if (request != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
@@ -936,35 +950,22 @@ updateRunstate()
 #endif // DEBUG_RS485
 			} else if (debugIdx < 11) {
 				char tmpOpMode[12];
-				getOpModeDesc(tmpOpMode, sizeof(tmpOpMode), runningOpMode);
+				getOpModeDesc(tmpOpMode, sizeof(tmpOpMode), opData.a2mOpMode);
 				snprintf(line4, sizeof(line4), "OpMode: %s", tmpOpMode);
 				debugIdx = 11;
 #ifndef DEBUG_NO_RS485
 			} else if (debugIdx < 12) {
-				request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
-				if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-					snprintf(line4, sizeof(line4), "Pwr: %ldW", DISPATCH_ACTIVE_POWER_OFFSET - response.signedIntValue);
-				} else {
-					snprintf(line4, sizeof(line4), "Pwr: err");
-				}
+				snprintf(line4, sizeof(line4), "Pwr: %ldW", DISPATCH_ACTIVE_POWER_OFFSET - opData.essDispatchActivePower);
 				debugIdx = 12;
 			} else if (debugIdx < 13) {
-				request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_SOC, &response);
-				if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-					snprintf(line4, sizeof(line4), "SOC TGT: %0.02f%%", response.unsignedShortValue * DISPATCH_SOC_MULTIPLIER);
-				} else  {
-					snprintf(line4, sizeof(line4), "SOC TGT: err");
-				}
+				snprintf(line4, sizeof(line4), "SOC TGT: %hu%% %0.02f%%", opData.a2mSocTarget, opData.essDispatchSoc * DISPATCH_SOC_MULTIPLIER);
 				debugIdx = 13;
-			} else if (debugIdx < 14) {
-				request = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_TIME_1, &response);
-				if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-					snprintf(line4, sizeof(line4), "DispTime: 0x%08lX", response.unsignedIntValue);
-				} else  {
-					snprintf(line4, sizeof(line4), "DispTime: err");
-				}
-				debugIdx = 14;
 #endif // ! DEBUG_NO_RS485
+#ifdef DEBUG_OPS
+			} else if (debugIdx < 15) {
+				snprintf(line4, sizeof(line4), "opCnt: %lu", opCounter);
+				debugIdx = 15;
+#endif // DEBUG_OPS
 			} else { // Must be last
 				snprintf(line4, sizeof(line4), "Version: %s", _version);
 				debugIdx = 0;
@@ -1093,16 +1094,7 @@ void updateRunstate()
 
 			// And percent for line 4
 			if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				request = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
-				if (request == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-					snprintf(line4, sizeof(line4), "%0.02f%%", response.unsignedShortValue * 0.1);
-				} else {
-					// Use line3 (line 3) for errors
-					strcpy(line3, "SOC Err");
-#ifdef DEBUG_RS485
-					rs485Errors++;
-#endif // DEBUG_RS485
-				}
+				snprintf(line4, sizeof(line4), "%0.02f%%", opData.essBatterySoc * BATTERY_SOC_MULTIPLIER);
 			}
 		} else {
 			snprintf(line3, sizeof(line3), "Mem: %u", freeMemory());
@@ -1502,14 +1494,14 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entitySocTarget:
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->unsignedShortValue = socTarget;
-		sprintf(rs->dataValueFormatted, "%u", (unsigned int)(rs->unsignedShortValue * DISPATCH_SOC_MULTIPLIER));
+		rs->unsignedShortValue = opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER;
+		sprintf(rs->dataValueFormatted, "%u", opData.a2mSocTarget);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		break;
 	case mqttEntityId::entityOpMode:
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->unsignedShortValue = (uint16_t)runningOpMode;
-		getOpModeDesc(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), runningOpMode);
+		rs->unsignedShortValue = (uint16_t)opData.a2mOpMode;
+		getOpModeDesc(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), opData.a2mOpMode);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		break;
 	case mqttEntityId::entityPvEnergy:
@@ -1634,14 +1626,10 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityBatSoc:
-#ifdef DEBUG_NO_RS485
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
-		rs->unsignedShortValue = 1000; // x 10
-		sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+		rs->unsignedShortValue = opData.essBatterySoc;
+		sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_SOC_MULTIPLIER);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-#else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, rs);
-#endif // DEBUG_NO_RS485
 		break;
 #ifdef DEBUG_CALLBACKS
 	case mqttEntityId::entityCallbacks:
@@ -2033,7 +2021,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"retain\": \"true\""
 #endif // HA_IS_OP_MODE_AUTHORITY
 			 ,
-			 OP_MODE_DESC_IDLE, OP_MODE_DESC_PV_CHARGE, OP_MODE_DESC_CHARGE, OP_MODE_DESC_LOAD_FOLLOW);
+			 OP_MODE_DESC_IDLE, OP_MODE_DESC_PV_CHARGE, OP_MODE_DESC_TARGET, OP_MODE_DESC_LOAD_FOLLOW);
 		break;
 	case mqttEntityId::entitySocTarget:
 		snprintf(stateAddition, sizeof(stateAddition),
@@ -2179,6 +2167,62 @@ sendHaData()
 }
 
 /*
+ * readEssOpData
+ *
+ * Read data from ESS and A2M
+ */
+bool
+readEssOpData()
+{
+#ifdef DEBUG_NO_RS485
+	opData.essDispatchStart = DISPATCH_START_START;
+	opData.essDispatchMode = DISPATCH_MODE_NORMAL_MODE;
+	opData.essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
+	opData.essDispatchSoc = 50 / DISPATCH_SOC_MULTIPLIER;
+	opData.essBatterySoc = 65 / BATTERY_SOC_MULTIPLIER;
+	return true;
+#else // DEBUG_NO_RS485
+	static unsigned long lastRun = 0;
+	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
+	modbusRequestAndResponse response;
+
+	if (!checkTimer(&lastRun, STATUS_INTERVAL_TEN_SECONDS)) {
+		// If less than interval, then return false so nothing gets read or written.
+		return false;
+	}
+
+	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essDispatchStart = response.unsignedShortValue;
+		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
+	}
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essDispatchMode = response.unsignedShortValue;
+		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
+	}
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essDispatchActivePower = response.signedIntValue;
+		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_SOC, &response);
+	}
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essDispatchSoc = response.unsignedShortValue;
+		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_SOC, &response);
+	}
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essBatterySoc = response.unsignedShortValue;
+	}
+
+	if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+#ifdef DEBUG_RS485
+		rs485Errors++;
+#endif // DEBUG_RS485
+		return false;
+	}
+	return true;
+#endif // DEBUG_NO_RS485
+}
+
+/*
   sendData
 
   Runs once every loop, checks to see if time periods have elapsed to allow the schedules to run.
@@ -2276,23 +2320,11 @@ sendDataFromMqttState(mqttState *singleEntity, bool doHomeAssistant)
 		result = addConfig(singleEntity, resultAddedToPayload);
 	} else {
 		bool skip = false;
-		if (!readyToUseOpMode && (singleEntity->entityId == mqttEntityId::entityOpMode)) {
-			if (getUptimeSeconds() > 120) {  // After 2 minutes, set these even if we didn't get a callback
-				runningOpMode = readOpMode();
-				readyToUseOpMode = true;
-				recheckOpData = true;
-			} else {
-				skip = true;
-			}
+		if (!opData.a2mReadyToUseOpMode && (singleEntity->entityId == mqttEntityId::entityOpMode)) {
+			skip = true;
 		}
-		if (!readyToUseSocTarget && (singleEntity->entityId == mqttEntityId::entitySocTarget)) {
-			if (getUptimeSeconds() > 120) {  // After 2 minutes, set these even if we didn't get a callback
-				socTarget = readSocTarget();
-				readyToUseSocTarget = true;
-				recheckOpData = true;
-			} else {
-				skip = true;
-			}
+		if (!opData.a2mReadyToUseSocTarget && (singleEntity->entityId == mqttEntityId::entitySocTarget)) {
+			skip = true;
 		}
 		if (!skip) {
 			snprintf(topic, sizeof(topic), DEVICE_NAME "/%s/%s/state", haUniqueId, singleEntity->mqttName);
@@ -2436,9 +2468,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 					badCallbacks++;
 #endif // DEBUG_CALLBACKS
 				} else {
-					socTarget = (uint16_t)(singleInt32 / DISPATCH_SOC_MULTIPLIER);
-					readyToUseSocTarget = true;
-					recheckOpData = true;
+					setA2mSocTarget((uint16_t)singleInt32);
 				}
 				break;
 			case mqttEntityId::entityRegNum:
@@ -2450,9 +2480,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				{
 					enum opMode tempOpMode = lookupOpMode(singleString);
 					if (tempOpMode != (enum opMode)-1) {
-						runningOpMode = tempOpMode;
-						readyToUseOpMode = true;
-						recheckOpData = true;
+						setA2mOpMode(tempOpMode);
 					} else {
 #ifdef DEBUG
 						snprintf(_debugOutput, sizeof(_debugOutput), "Callback: Bad opMode: %s", singleString);
@@ -2529,8 +2557,8 @@ getOpModeDesc(char *dest, size_t size, enum opMode mode)
 	case opMode::opModePvCharge:
 		strlcpy(dest, OP_MODE_DESC_PV_CHARGE, size);
 		break;
-	case opMode::opModeCharge:
-		strlcpy(dest, OP_MODE_DESC_CHARGE, size);
+	case opMode::opModeTarget:
+		strlcpy(dest, OP_MODE_DESC_TARGET, size);
 		break;
 	case opMode::opModeLoadFollow:
 		strlcpy(dest, OP_MODE_DESC_LOAD_FOLLOW, size);
@@ -2545,92 +2573,115 @@ lookupOpMode(char *opModeDesc)
 		return opMode::opModeIdle;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_PV_CHARGE))
 		return opMode::opModePvCharge;
-	if (!strcmp(opModeDesc, OP_MODE_DESC_CHARGE))
-		return opMode::opModeCharge;
+	if (!strcmp(opModeDesc, OP_MODE_DESC_TARGET))
+		return opMode::opModeTarget;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_LOAD_FOLLOW))
 		return opMode::opModeLoadFollow;
 	return (enum opMode)-1;  // Shouldn't happen
 }
 
 void
-setOpMode(void)
+setA2mSocTarget(uint16_t target)
+{
+	opData.a2mSocTarget = target;
+	opData.a2mReadyToUseSocTarget = true;
+}
+
+void
+setA2mOpMode(enum opMode mode)
+{
+	opData.a2mOpMode = mode;
+	opData.a2mReadyToUseOpMode = true;
+
+	if (!opData.a2mReadyToUseSocTarget) {
+		switch (mode) {
+		case opMode::opModeIdle:
+		case opMode::opModePvCharge:
+		case opMode::opModeTarget:
+			opData.a2mSocTarget = SOC_TARGET_MAX;
+			break;
+		case opMode::opModeLoadFollow:
+			opData.a2mSocTarget = SOC_TARGET_MIN;
+			break;
+		}
+	}
+}
+
+void
+setEssOpMode(void)
 {
 #ifdef DEBUG_NO_RS485
 	return;
 #else // DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
 	modbusRequestAndResponse response;
-	uint16_t singleRegisterVal;
+	uint16_t essDispatchStart, essDispatchMode, essDispatchSoc;
+	int32_t essDispatchActivePower;
 
-	singleRegisterVal = DISPATCH_START_STOP;
-	switch (runningOpMode) {
+#ifdef DEBUG_OPS
+	opCounter++;
+#endif
+
+	essDispatchSoc = opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER;
+#ifdef MAX_DISPATCH_SOC
+	if (opData.a2mSocTarget == 100) {
+		essDispatchSoc = MAX_DISPATCH_SOC;
+	}
+#endif // MAX_DISPATCH_SOC
+
+	if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) == (essDispatchSoc * DISPATCH_SOC_MULTIPLIER)) {
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
+	} else if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) > (essDispatchSoc * DISPATCH_SOC_MULTIPLIER)) {
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + INVERTER_POWER_MAX_DISCHARGE;
+	} else {
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
+	}
+
+	switch (opData.a2mOpMode) {
 	case opMode::opModeIdle:
+		essDispatchStart = DISPATCH_START_STOP;
+		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;  // Dummy value since we're stopped.
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
 		break;
 	case opMode::opModePvCharge:
-	case opMode::opModeCharge:
-	case opMode::opModeLoadFollow:
-		singleRegisterVal = DISPATCH_START_START;
+		essDispatchStart = DISPATCH_START_START;
+		essDispatchMode = DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV;
 		break;
+	case opMode::opModeTarget:
+		essDispatchStart = DISPATCH_START_START;
+		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
+		break;
+	case opMode::opModeLoadFollow:
+		essDispatchStart = DISPATCH_START_START;
+		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
+		break;
+	default:
+		return; // Shouldn't happen!  opMode is corrupt.
 	}
-	result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, singleRegisterVal, &response);
+
+	result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, essDispatchStart, &response);
+
 	if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
-		switch (runningOpMode) {
-		case opMode::opModeIdle:
-			break;
-		case opMode::opModePvCharge:
-			result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_MODE,
-									  DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV, &response);
-			break;
-		case opMode::opModeCharge:
-			result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_MODE,
-									  DISPATCH_MODE_STATE_OF_CHARGE_CONTROL, &response);
-			break;
-		case opMode::opModeLoadFollow:
-			result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_MODE,
-									  DISPATCH_MODE_LOAD_FOLLOWING, &response);
-			break;
-		}
-	}
-	if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
-		int32_t activePower = DISPATCH_ACTIVE_POWER_OFFSET;
-		switch (runningOpMode) {
-		case opMode::opModeIdle:
-			break;
-		case opMode::opModePvCharge:
-			activePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
-			break;
-		case opMode::opModeCharge:
-			activePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
-			break;
-		case opMode::opModeLoadFollow:
-			activePower = DISPATCH_ACTIVE_POWER_OFFSET + INVERTER_POWER_MAX_DISCHARGE;
-			break;
-		}
 		response.registerCount = 2;
-		result = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, activePower, &response);
+		result = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, essDispatchActivePower, &response);
 	}
+
 	if (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
-		uint16_t activeSocTarget = socTarget;
-		if (!readyToUseSocTarget) {
-			switch (runningOpMode) {
-			case opMode::opModeIdle:
-			case opMode::opModePvCharge:
-			case opMode::opModeCharge:
-				activeSocTarget = SOC_TARGET_MAX / DISPATCH_SOC_MULTIPLIER;
-				break;
-			case opMode::opModeLoadFollow:
-				activeSocTarget = SOC_TARGET_MIN / DISPATCH_SOC_MULTIPLIER;
-				break;
-			}
-		}
-		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, activeSocTarget, &response);
+		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, essDispatchSoc, &response);
 	}
+
 	if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
 		response.registerCount = 2;
 		result = _registerHandler->writeRawDataRegister(REG_DISPATCH_RW_DISPATCH_TIME_1, 0x7FFFFFFF, &response);
 	}
+
+// DAVE - writing mode last.  - verify that this is right.  Emporia did this after START.
+	if (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
+		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_MODE, essDispatchMode, &response);
+	}
+
 #ifdef DEBUG_RS485
-	if (result != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
+	if (result != modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
 		rs485Errors++;
 	}
 #endif // DEBUG_RS485
@@ -2638,126 +2689,68 @@ setOpMode(void)
 }
 
 bool
-checkOpMode(void)
+checkEssOpMode(void)
 {
 #ifndef DEBUG_NO_RS485
-	static unsigned long lastRun = 0;
-	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
-	modbusRequestAndResponse response;
+	uint16_t essDispatchMode, essDispatchSoc;
+	int32_t essDispatchActivePower;
 
-	if (recheckOpData) {
-		lastRun = 0; // Don't wait for the timer.
-		recheckOpData = false;
-	}
-	if (!checkTimer(&lastRun, STATUS_INTERVAL_ONE_MINUTE)) {
-		// If less than interval, then say we're all good so nothing gets read or written.
-		return true;
+	if (!opData.a2mReadyToUseOpMode) {
+		return true;  // Don't set anything if opMode isn't ready.
 	}
 
-	switch (runningOpMode) {
+	essDispatchSoc = opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER;
+#ifdef MAX_DISPATCH_SOC
+	if (opData.a2mSocTarget == 100) {
+		essDispatchSoc = MAX_DISPATCH_SOC;
+	}
+#endif // MAX_DISPATCH_SOC
+
+	switch (opData.a2mOpMode) {
 	case opMode::opModeIdle:
+		if (opData.essDispatchStart != DISPATCH_START_STOP) {
+			return false;
+		}
+		return true;  // Nothing else to check for Idle.
+	default:
+		if (opData.essDispatchStart != DISPATCH_START_START) {
+			return false;
+		}
+		break;
+	}
+
+	if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) == (essDispatchSoc * DISPATCH_SOC_MULTIPLIER)) {
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
+	} else if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) > (essDispatchSoc * DISPATCH_SOC_MULTIPLIER)) {
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + INVERTER_POWER_MAX_DISCHARGE;
+	} else {
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
+	}
+
+	switch (opData.a2mOpMode) {
 	case opMode::opModePvCharge:
-	case opMode::opModeCharge:
+		essDispatchMode = DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV;
+		break;
+	case opMode::opModeTarget:
+		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
+		break;
 	case opMode::opModeLoadFollow:
+		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
 		break;
 	default:
 		return false;  // Shouldn't happen!  opMode is corrupt.
 	}
 
-	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		switch (runningOpMode) {
-		case opMode::opModeIdle:
-			if (response.unsignedShortValue != DISPATCH_START_STOP) {
-				return false;
-			}
-			return true;  // Nothing else to check for Idle.
-		case opMode::opModePvCharge:
-		case opMode::opModeCharge:
-		case opMode::opModeLoadFollow:
-			if (response.unsignedShortValue != DISPATCH_START_START) {
-				return false;
-			}
-			break;
-		}
-#ifdef DEBUG_RS485
-	} else {
-		rs485Errors++;
-#endif // DEBUG_RS485
+	if (opData.essDispatchMode != essDispatchMode) {
+		return false;
 	}
 
-	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		switch (runningOpMode) {
-		case opMode::opModeIdle:
-			break;
-		case opMode::opModePvCharge:
-			if (response.unsignedShortValue != DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV) {
-				return false;
-			}
-			break;
-		case opMode::opModeCharge:
-			if (response.unsignedShortValue != DISPATCH_MODE_STATE_OF_CHARGE_CONTROL) {
-				return false;
-			}
-			break;
-		case opMode::opModeLoadFollow:
-			if (response.unsignedShortValue != DISPATCH_MODE_LOAD_FOLLOWING) {
-				return false;
-			}
-			break;
-		}
-#ifdef DEBUG_RS485
-	} else {
-		rs485Errors++;
-#endif // DEBUG_RS485
+	if (opData.essDispatchActivePower != essDispatchActivePower) {
+		return false;
 	}
 
-	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_ACTIVE_POWER_1, &response);
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		int32_t activePower = DISPATCH_ACTIVE_POWER_OFFSET;
-		switch (runningOpMode) {
-		case opMode::opModeIdle:
-			break;
-		case opMode::opModePvCharge:
-		case opMode::opModeCharge:
-			activePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
-			break;
-		case opMode::opModeLoadFollow:
-			activePower = DISPATCH_ACTIVE_POWER_OFFSET + INVERTER_POWER_MAX_DISCHARGE;
-			break;
-		}
-		if (activePower != response.signedIntValue) {
-			return false;
-		}
-#ifdef DEBUG_RS485
-	} else {
-		rs485Errors++;
-#endif // DEBUG_RS485
-	}
-
-	result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_SOC, &response);
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		uint16_t activeSocTarget = socTarget;
-		if (!readyToUseSocTarget) {
-			switch (runningOpMode) {
-			case opMode::opModeIdle:
-			case opMode::opModePvCharge:
-			case opMode::opModeCharge:
-				activeSocTarget = SOC_TARGET_MAX / DISPATCH_SOC_MULTIPLIER;
-				break;
-			case opMode::opModeLoadFollow:
-				activeSocTarget = SOC_TARGET_MIN / DISPATCH_SOC_MULTIPLIER;
-				break;
-			}
-		}
-		if (activeSocTarget != response.unsignedShortValue) {
-			return false;
-		}
-#ifdef DEBUG_RS485
-	} else {
-		rs485Errors++;
-#endif // DEBUG_RS485
+	if (opData.essDispatchSoc != essDispatchSoc) {
+		return false;
 	}
 
 	// Don't worry about REG_DISPATCH_RW_DISPATCH_TIME_1
@@ -2767,7 +2760,7 @@ checkOpMode(void)
 }
 
 enum opMode
-readOpMode(void)
+getA2mOpModeFromEss(void)
 {
 #ifdef DEBUG_NO_RS485
 	return opMode::opModeIdle;
@@ -2788,7 +2781,7 @@ readOpMode(void)
 					return opMode::opModePvCharge;
 				}
 				if (response.unsignedShortValue == DISPATCH_MODE_STATE_OF_CHARGE_CONTROL) {
-					return opMode::opModeCharge;
+					return opMode::opModeTarget;
 				}
 				if (response.unsignedShortValue == DISPATCH_MODE_LOAD_FOLLOWING) {
 					return opMode::opModeLoadFollow;
@@ -2800,10 +2793,10 @@ readOpMode(void)
 			rs485Errors++;
 #endif // DEBUG_RS485
 #ifdef DEBUG
-			snprintf(_debugOutput, sizeof(_debugOutput), "readOpMode: read failed");
+			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpModeFromEss: read failed");
 			Serial.println(_debugOutput);
 		} else {
-			snprintf(_debugOutput, sizeof(_debugOutput), "readOpMode: Unhandled Dispatch Mode: %u/", response.unsignedShortValue);
+			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpModeFromEss: Unhandled Dispatch Mode: %u/", response.unsignedShortValue);
 			Serial.print(_debugOutput);
 			Serial.println(response.dataValueFormatted);
 #endif
@@ -2814,11 +2807,12 @@ readOpMode(void)
 #endif // DEBUG_NO_RS485
 }
 
+// Returns a percent (0-100)
 uint16_t
-readSocTarget(void)
+getA2mSocTargetFromEss(void)
 {
 #ifdef DEBUG_NO_RS485
-	return SOC_TARGET_MAX / DISPATCH_SOC_MULTIPLIER;
+	return SOC_TARGET_MAX;
 #else // DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result;
 	modbusRequestAndResponse response;
@@ -2826,10 +2820,15 @@ readSocTarget(void)
 	while (true) {
 		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_SOC, &response);
 		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-			return response.unsignedShortValue;
+#ifdef MAX_DISPATCH_SOC
+			if (response.unsignedShortValue == MAX_DISPATCH_SOC) {
+				response.unsignedShortValue = (100 / DISPATCH_SOC_MULTIPLIER);
+			}
+#endif // MAX_DISPATCH_SOC
+			return response.unsignedShortValue * DISPATCH_SOC_MULTIPLIER;
 		} else {
 #ifdef DEBUG
-			snprintf(_debugOutput, sizeof(_debugOutput), "readSocTarget: read failed");
+			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mSocTargetFromEss: read failed");
 			Serial.println(_debugOutput);
 #endif // DEBUG
 #ifdef DEBUG_RS485
@@ -2838,7 +2837,7 @@ readSocTarget(void)
 		}
 	}
 	// Not reached.
-	return SOC_TARGET_MIN / DISPATCH_SOC_MULTIPLIER;
+	return SOC_TARGET_MIN;
 #endif // DEBUG_NO_RS485
 }
 

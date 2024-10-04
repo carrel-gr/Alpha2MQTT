@@ -59,7 +59,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
 //#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
 //#define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
-#define DEBUG_RS485	// Enable extra debug on display and via MQTT
+//#define DEBUG_OPS     // Enable extra debug for opModes
+//#define DEBUG_RS485	// Enable extra debug on display and via MQTT
 //#define DEBUG_NO_RS485	// Fake-out all RS485 comms
 //#define DEBUG_LEVEL2 // For serial flooding action
 //#define DEBUG_OUTPUT_TX_RX
@@ -111,6 +112,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // Documentation declares 0.1kWh - My value was 308695, and according to web interface my total PV is 3086kWh, so multiplier seems wrong
 // Note: For EMS3.5/EMS3.6 this seems to use 0.01 and NOT the spec value of 0.1
 #define TOTAL_ENERGY_MULTIPLIER 0.01
+// Doc declares 0.1 %/bit for REG_TIMING_RW_CHARGE_CUT_SOC but it seems to really be 1.0
+#define CHARGE_CUT_SOC_MULTIPLIER 1
+// Most all battery SOC values use this multiplier.  Do note that DISPATCH_SOC_MULTIPLIER (below) is different
+#define BATTERY_SOC_MULTIPLIER 0.1
 
 
 // After some liaison with a user of Alpha2MQTT on a 115200 baud rate, this fixed inconsistent retrieval
@@ -161,6 +166,11 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // I beg to differ on this, I'd say it's more 0.396 based on my tests
 // However make it easily customisable here
 #define DISPATCH_SOC_MULTIPLIER 0.4
+// A SOC_TARGET value of 250 (when multiplied by 0.4 above) should equal 100%.
+// But sometimes the EMS won't quite reach 100% when using 250.  Using 252 (100.5%) makes it
+// always hit 100% and the Alpha doesn't let it go above a true 100%.
+// This _could_ be due to the difference between 0.396 and 0.4
+#define MAX_DISPATCH_SOC 252
 
 
 // A user informed me that their router leverages leases on network connections which can't be disabled.
@@ -514,6 +524,16 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1										0x0857	// 1H/bit								// 2 Bytes		// Unsigned Short
 #define REG_TIMING_RW_TIME_CHARGE_START_TIME_2										0x0858	// 1H/bit								// 2 Bytes		// Unsigned Short
 #define REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2										0x0859	// 1H/bit								// 2 Bytes		// Unsigned Short
+#ifdef EMS_35_36
+#define REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1_MIN									0x085A	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1_MIN									0x085B	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2_MIN									0x085C	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2_MIN									0x085D	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_CHARGE_START_TIME_1_MIN									0x085E	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1_MIN									0x085F	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_CHARGE_START_TIME_2_MIN									0x0860	// 1H/bit								// 2 Bytes		// Unsigned Short
+#define REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2_MIN									0x0861	// 1H/bit								// 2 Bytes		// Unsigned Short
+#endif // EMS_35_36
 
 // Dispatch
 #define REG_DISPATCH_RW_DISPATCH_START												0x0880	// <<DISPATCH START LOOKUP>>			// 2 Bytes		// Unsigned Short
@@ -1198,13 +1218,13 @@ enum homeAssistantClass {
 enum opMode {
 	opModeIdle,
 	opModePvCharge,
-	opModeCharge,
+	opModeTarget,
 	opModeLoadFollow
 };
 
 #define OP_MODE_DESC_IDLE		"Idle"
 #define OP_MODE_DESC_PV_CHARGE		"PV Charge"
-#define OP_MODE_DESC_CHARGE		"Charge"
+#define OP_MODE_DESC_TARGET		"Target"
 #define OP_MODE_DESC_LOAD_FOLLOW	"Load Follow"
 
 struct mqttState

@@ -1354,6 +1354,56 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		rs->registerCount = 1;
 		break;
 	}
+#ifdef EMS_35_36
+	case REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_CHARGE_START_TIME_1_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_CHARGE_START_TIME_2_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2_MIN:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+#endif // EMS_35_36
 	case REG_DISPATCH_RW_DISPATCH_START:
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
@@ -3841,6 +3891,64 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
 			break;
 		}
+#ifdef EMS_35_36
+		case REG_TIMING_RW_TIME_DISCHARGE_START_TIME_1_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_1_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_DISCHARGE_START_TIME_2_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_DISCHARGE_STOP_TIME_2_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_CHARGE_START_TIME_1_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_CHARGE_STOP_TIME_1_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_CHARGE_START_TIME_2_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_TIMING_RW_TIME_CHARGE_STOP_TIME_2_MIN:
+		{
+			// Type: Unsigned Short
+			// 1min/bit
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+#endif // EMS_35_36
 		case REG_DISPATCH_RW_DISPATCH_START:
 		{
 			// Type: Unsigned Short
