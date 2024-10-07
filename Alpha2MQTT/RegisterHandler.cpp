@@ -4048,6 +4048,11 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
 				break;
 			}
+			case DISPATCH_MODE_NO_BATTERY_CHARGE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_NO_BATTERY_CHARGE_DESC);
+				break;
+			}
 			default:
 			{
 				strcpy(rs->dataValueFormatted, "Unknown");

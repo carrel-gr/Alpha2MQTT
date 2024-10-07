@@ -165,12 +165,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 // I beg to differ on this, I'd say it's more 0.396 based on my tests
 // However make it easily customisable here
-#define DISPATCH_SOC_MULTIPLIER 0.4
-// A SOC_TARGET value of 250 (when multiplied by 0.4 above) should equal 100%.
-// But sometimes the EMS won't quite reach 100% when using 250.  Using 252 (100.5%) makes it
-// always hit 100% and the Alpha doesn't let it go above a true 100%.
-// This _could_ be due to the difference between 0.396 and 0.4
-#define MAX_DISPATCH_SOC 252
+//#define DISPATCH_SOC_MULTIPLIER 0.4
+#define DISPATCH_SOC_MULTIPLIER 0.396
 
 
 // A user informed me that their router leverages leases on network connections which can't be disabled.
@@ -870,7 +866,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define DISPATCH_MODE_FCAS_MODE_DESC "FCAS-Mode"
 #define DISPATCH_MODE_PV_POWER_SETTING 10
 #define DISPATCH_MODE_PV_POWER_SETTING_DESC "PV power setting"
-
+#define DISPATCH_MODE_NO_BATTERY_CHARGE 19
+#define DISPATCH_MODE_NO_BATTERY_CHARGE_DESC "No Battery Charge"
 
 
 // Note8 - GRID REGULATION LOOKUP
@@ -1216,16 +1213,28 @@ enum homeAssistantClass {
 };
 
 enum opMode {
-	opModeIdle,
+//	opModeIdle,
 	opModePvCharge,
 	opModeTarget,
-	opModeLoadFollow
+	opModeLoadFollow,
+	opModeMaxOut,
+	opModeNormal,
+	opModeOptCons,
+	opModeMaxCons,
+//	opModePvPower,
+	opModeNoBattCharge
 };
 
-#define OP_MODE_DESC_IDLE		"Idle"
+//#define OP_MODE_DESC_IDLE		"Idle"
 #define OP_MODE_DESC_PV_CHARGE		"PV Charge"
-#define OP_MODE_DESC_TARGET		"Target"
+#define OP_MODE_DESC_TARGET		"Target SOC"
 #define OP_MODE_DESC_LOAD_FOLLOW	"Load Follow"
+#define OP_MODE_DESC_MAX_OUT		"Max Output"
+#define OP_MODE_DESC_NORMAL		"Normal"
+#define OP_MODE_DESC_OPT_CONS		"Opt Consumpt"
+#define OP_MODE_DESC_MAX_CONS		"Max Consumpt"
+//#define OP_MODE_DESC_PV_POWER		"PV Power"
+#define OP_MODE_DESC_NO_BATT_CHARGE	"No Charge"
 
 struct mqttState
 {
