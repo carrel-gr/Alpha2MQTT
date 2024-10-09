@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.46";
+char _version[6] = "v2.47";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -95,12 +95,12 @@ uint32_t opCounter = 0;
 #endif // DEBUG_OPS
 
 struct {
-//	opMode   a2mOpMode = opMode::opModeIdle;
 	opMode   a2mOpMode = opMode::opModeLoadFollow;
 	bool     a2mReadyToUseOpMode = false;
 	uint16_t a2mSocTarget = SOC_TARGET_MAX;   // Stored as percent (0-100)
 	bool     a2mReadyToUseSocTarget = false;
-//	int32_t  a2mActivePower = DISPATCH_ACTIVE_POWER_OFFSET;  // Currently hard-coded and not set by HA.
+	int32_t  a2mPwrCharge = INVERTER_POWER_MAX_CHARGE;        // Currently hard-coded and not set by HA.
+	int32_t  a2mPwrDischarge = INVERTER_POWER_MAX_DISCHARGE;  // Currently hard-coded and not set by HA.
 
 	uint16_t essDispatchStart = DISPATCH_START_STOP;
 	uint16_t essDispatchMode = 0;
@@ -331,13 +331,17 @@ void setup()
 	sendHaData();
 	resendHaData = true;  // Tell loop() to do it again
 
+        opData.a2mOpMode = getA2mOpModeFromEss();
+        opData.a2mSocTarget = getA2mSocTargetFromEss();
 #ifndef HA_IS_OP_MODE_AUTHORITY
-	setA2mOpMode(getA2mOpModeFromEss());
-	setA2mSocTarget(getA2mSocTargetFromEss());
+        opData.a2mReadyToUseOpMode = true;
+        opData.a2mReadyToUseSocTarget = true;
 #endif // ! HA_IS_OP_MODE_AUTHORITY
 
-	while (!readEssOpData()) {
-		// loop until we get one clean read
+	gotResponse = readEssOpData();
+	// loop until we get one clean read
+	while (!gotResponse) {
+		gotResponse = readEssOpData();
 	}
 	sendData();
 	resendAllData = true; // Tell sendData() to send everything again
@@ -387,10 +391,10 @@ loop()
 	if (readEssOpData()) {
 		if (getUptimeSeconds() > 120) {  // After 2 minutes, set these even if we didn't get a callback
 			if (!opData.a2mReadyToUseOpMode) {
-				setA2mOpMode(getA2mOpModeFromEss());
+				opData.a2mReadyToUseOpMode = true;
 			}
 			if (!opData.a2mReadyToUseSocTarget) {
-				setA2mSocTarget(getA2mSocTargetFromEss());
+				opData.a2mReadyToUseSocTarget = true;
 			}
 		}
 		// Read and transmit all entity data to MQTT
@@ -1923,18 +1927,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		break;
 	case mqttEntityId::entityOpMode:
 		snprintf(stateAddition, sizeof(stateAddition),
-			 ", \"options\": [ "
-//			 "\"%s\", \"%s\", "
-			 "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]"
+			 ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]"
 #ifdef HA_IS_OP_MODE_AUTHORITY
 			 ", \"retain\": \"true\""
 #endif // HA_IS_OP_MODE_AUTHORITY
-			 ,
-//			 OP_MODE_DESC_IDLE,
-			 OP_MODE_DESC_PV_CHARGE, OP_MODE_DESC_TARGET, OP_MODE_DESC_LOAD_FOLLOW,
-			 OP_MODE_DESC_MAX_OUT, OP_MODE_DESC_NORMAL, OP_MODE_DESC_OPT_CONS, OP_MODE_DESC_MAX_CONS,
-//			 OP_MODE_DESC_PV_POWER,
-			 OP_MODE_DESC_NO_BATT_CHARGE);
+			 , OP_MODE_DESC_LOAD_FOLLOW, OP_MODE_DESC_TARGET,
+			 OP_MODE_DESC_PV_CHARGE, OP_MODE_DESC_MAX_CHARGE, OP_MODE_DESC_NO_CHARGE);
 		break;
 	case mqttEntityId::entitySocTarget:
 		snprintf(stateAddition, sizeof(stateAddition),
@@ -2386,7 +2384,8 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 					badCallbacks++;
 #endif // DEBUG_CALLBACKS
 				} else {
-					setA2mSocTarget((uint16_t)singleInt32);
+					opData.a2mSocTarget = singleInt32;
+					opData.a2mReadyToUseSocTarget = true;
 				}
 				break;
 			case mqttEntityId::entityRegNum:
@@ -2398,7 +2397,8 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				{
 					enum opMode tempOpMode = lookupOpMode(singleString);
 					if (tempOpMode != (enum opMode)-1) {
-						setA2mOpMode(tempOpMode);
+						opData.a2mOpMode = tempOpMode;
+						opData.a2mReadyToUseOpMode = true;
 					} else {
 #ifdef DEBUG
 						snprintf(_debugOutput, sizeof(_debugOutput), "Callback: Bad opMode: %s", singleString);
@@ -2469,9 +2469,6 @@ getOpModeDesc(char *dest, size_t size, enum opMode mode)
 {
 	snprintf(dest, size, "Unknown %u", mode);
 	switch (mode) {
-//	case opMode::opModeIdle:
-//		strlcpy(dest, OP_MODE_DESC_IDLE, size);
-//		break;
 	case opMode::opModePvCharge:
 		strlcpy(dest, OP_MODE_DESC_PV_CHARGE, size);
 		break;
@@ -2481,23 +2478,11 @@ getOpModeDesc(char *dest, size_t size, enum opMode mode)
 	case opMode::opModeLoadFollow:
 		strlcpy(dest, OP_MODE_DESC_LOAD_FOLLOW, size);
 		break;
-	case opMode::opModeMaxOut:
-		strlcpy(dest, OP_MODE_DESC_MAX_OUT, size);
+	case opMode::opModeMaxCharge:
+		strlcpy(dest, OP_MODE_DESC_MAX_CHARGE, size);
 		break;
-	case opMode::opModeNormal:
-		strlcpy(dest, OP_MODE_DESC_NORMAL, size);
-		break;
-	case opMode::opModeOptCons:
-		strlcpy(dest, OP_MODE_DESC_OPT_CONS, size);
-		break;
-	case opMode::opModeMaxCons:
-		strlcpy(dest, OP_MODE_DESC_MAX_CONS, size);
-		break;
-//	case opMode::opModePvPower:
-//		strlcpy(dest, OP_MODE_DESC_PV_POWER, size);
-//		break;
-	case opMode::opModeNoBattCharge:
-		strlcpy(dest, OP_MODE_DESC_NO_BATT_CHARGE, size);
+	case opMode::opModeNoCharge:
+		strlcpy(dest, OP_MODE_DESC_NO_CHARGE, size);
 		break;
 	}
 }
@@ -2505,60 +2490,17 @@ getOpModeDesc(char *dest, size_t size, enum opMode mode)
 enum opMode
 lookupOpMode(char *opModeDesc)
 {
-//	if (!strcmp(opModeDesc, OP_MODE_DESC_IDLE))
-//		return opMode::opModeIdle;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_PV_CHARGE))
 		return opMode::opModePvCharge;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_TARGET))
 		return opMode::opModeTarget;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_LOAD_FOLLOW))
 		return opMode::opModeLoadFollow;
-	if (!strcmp(opModeDesc, OP_MODE_DESC_MAX_OUT))
-		return opMode::opModeMaxOut;
-	if (!strcmp(opModeDesc, OP_MODE_DESC_NORMAL))
-		return opMode::opModeNormal;
-	if (!strcmp(opModeDesc, OP_MODE_DESC_OPT_CONS))
-		return opMode::opModeOptCons;
-	if (!strcmp(opModeDesc, OP_MODE_DESC_MAX_CONS))
-		return opMode::opModeMaxCons;
-//	if (!strcmp(opModeDesc, OP_MODE_DESC_PV_POWER))
-//		return opMode::opModePvPower;
-	if (!strcmp(opModeDesc, OP_MODE_DESC_NO_BATT_CHARGE))
-		return opMode::opModeNoBattCharge;
+	if (!strcmp(opModeDesc, OP_MODE_DESC_MAX_CHARGE))
+		return opMode::opModeMaxCharge;
+	if (!strcmp(opModeDesc, OP_MODE_DESC_NO_CHARGE))
+		return opMode::opModeNoCharge;
 	return (enum opMode)-1;  // Shouldn't happen
-}
-
-void
-setA2mSocTarget(uint16_t target)
-{
-	opData.a2mSocTarget = target;
-	opData.a2mReadyToUseSocTarget = true;
-}
-
-void
-setA2mOpMode(enum opMode mode)
-{
-	opData.a2mOpMode = mode;
-	opData.a2mReadyToUseOpMode = true;
-
-	if (!opData.a2mReadyToUseSocTarget) {
-		switch (mode) {
-//		case opMode::opModeIdle:
-		case opMode::opModePvCharge:
-		case opMode::opModeTarget:
-		case opMode::opModeMaxOut:
-		case opMode::opModeNormal:
-		case opMode::opModeOptCons:
-		case opMode::opModeMaxCons:
-			opData.a2mSocTarget = SOC_TARGET_MAX;
-			break;
-		case opMode::opModeLoadFollow:
-//		case opMode::opModePvPower:
-		case opMode::opModeNoBattCharge:
-			opData.a2mSocTarget = SOC_TARGET_MIN;
-			break;
-		}
-	}
 }
 
 void
@@ -2569,7 +2511,7 @@ setEssOpMode(void)
 #else // DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
 	modbusRequestAndResponse response;
-	uint16_t essDispatchStart, essDispatchMode;
+	uint16_t essDispatchMode;
 	int32_t essDispatchActivePower;
 
 #ifdef DEBUG_OPS
@@ -2579,62 +2521,32 @@ setEssOpMode(void)
 	if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) == opData.a2mSocTarget) {
 		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
 	} else if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) > opData.a2mSocTarget) {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + INVERTER_POWER_MAX_DISCHARGE;
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
 	} else {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
 	}
 
 	switch (opData.a2mOpMode) {
-//	case opMode::opModeIdle:
-//		essDispatchStart = DISPATCH_START_STOP;
-//		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;  // Dummy value since we're stopped.
-//		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
-//		break;
-	case opMode::opModePvCharge:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV;
+	case opMode::opModePvCharge:		// Honors Power and SOC
+		essDispatchMode = DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV;	// Honors Power but not SOC
 		break;
-	case opMode::opModeTarget:
-		essDispatchStart = DISPATCH_START_START;
-		if (opData.a2mSocTarget == 100) {
-			essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;
-		} else {
-			essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
-		}
+	case opMode::opModeTarget:		// Honors Power and SOC
+		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;	// Honors Power and SOC
 		break;
-	case opMode::opModeLoadFollow:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
+	case opMode::opModeLoadFollow:		// Honors Power and SOC
+		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;			// Honors Power but not SOC
 		break;
-	case opMode::opModeMaxOut:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_MAXIMISE_OUTPUT;
+	case opMode::opModeMaxCharge:		// Doesn't honors Power or SOC
+		essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;		// Doesn't honors Power or SOC
 		break;
-	case opMode::opModeNormal:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_NORMAL_MODE;
-		break;
-	case opMode::opModeOptCons:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;
-		break;
-	case opMode::opModeMaxCons:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_MAXIMISE_CONSUMPTION;
-		break;
-//	case opMode::opModePvPower:
-//		essDispatchStart = DISPATCH_START_START;
-//		essDispatchMode = DISPATCH_MODE_PV_POWER_SETTING;
-//		break;
-	case opMode::opModeNoBattCharge:
-		essDispatchStart = DISPATCH_START_START;
-		essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;
+	case opMode::opModeNoCharge:		// Doesn't honors Power or SOC
+		essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honors Power or SOC
 		break;
 	default:
 		return; // Shouldn't happen!  opMode is corrupt.
 	}
 
-	result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, essDispatchStart, &response);
+	result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_START, &response);
 
 	if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
 		response.registerCount = 2;
@@ -2642,7 +2554,11 @@ setEssOpMode(void)
 	}
 
 	if (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
-		result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER, &response);
+		if (opData.a2mReadyToUseSocTarget) {
+			result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_SOC, opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER, &response);
+		} else {
+			result = modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess;
+		}
 	}
 
 	if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
@@ -2674,25 +2590,16 @@ checkEssOpMode(void)
 		return true;  // Don't set anything if opMode isn't ready.
 	}
 
-//	switch (opData.a2mOpMode) {
-//	case opMode::opModeIdle:
-//		if (opData.essDispatchStart != DISPATCH_START_STOP) {
-//			return false;
-//		}
-//		return true;  // Nothing else to check for Idle.
-//	default:
-		if (opData.essDispatchStart != DISPATCH_START_START) {
-			return false;
-		}
-//		break;
-//	}
+	if (opData.essDispatchStart != DISPATCH_START_START) {
+		return false;
+	}
 
 	if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) == opData.a2mSocTarget) {
 		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
 	} else if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) > opData.a2mSocTarget) {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + INVERTER_POWER_MAX_DISCHARGE;
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
 	} else {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - INVERTER_POWER_MAX_CHARGE;
+		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
 	}
 
 	switch (opData.a2mOpMode) {
@@ -2700,31 +2607,15 @@ checkEssOpMode(void)
 		essDispatchMode = DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV;
 		break;
 	case opMode::opModeTarget:
-		if (opData.a2mSocTarget == 100) {
-			essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;
-		} else {
-			essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
-		}
+		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
 		break;
 	case opMode::opModeLoadFollow:
 		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
 		break;
-	case opMode::opModeMaxOut:
-		essDispatchMode = DISPATCH_MODE_MAXIMISE_OUTPUT;
-		break;
-	case opMode::opModeNormal:
-		essDispatchMode = DISPATCH_MODE_NORMAL_MODE;
-		break;
-	case opMode::opModeOptCons:
+	case opMode::opModeMaxCharge:
 		essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;
 		break;
-	case opMode::opModeMaxCons:
-		essDispatchMode = DISPATCH_MODE_MAXIMISE_CONSUMPTION;
-		break;
-//	case opMode::opModePvPower:
-//		essDispatchMode = DISPATCH_MODE_PV_POWER_SETTING;
-//		break;
-	case opMode::opModeNoBattCharge:
+	case opMode::opModeNoCharge:
 		essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;
 		break;
 	default:
@@ -2739,11 +2630,12 @@ checkEssOpMode(void)
 		return false;
 	}
 
-	if (opData.essDispatchSoc != (opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER)) {
+	if (opData.a2mReadyToUseSocTarget &&
+	    (opData.essDispatchSoc != (opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER))) {
 		return false;
 	}
 
-	// Don't worry about REG_DISPATCH_RW_DISPATCH_TIME_1
+	// No need to check REG_DISPATCH_RW_DISPATCH_TIME_1
 
 #endif // ! DEBUG_NO_RS485
 	return true;
@@ -2753,63 +2645,44 @@ enum opMode
 getA2mOpModeFromEss(void)
 {
 #ifdef DEBUG_NO_RS485
-//	return opMode::opModeIdle;
-	return opMode::opModeNormal;
+	return opMode::opModeNoCharge;
 #else // DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result;
 	modbusRequestAndResponse response;
 
 	while (true) {
-		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_START, &response);
+		result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
 		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-//			if (response.unsignedShortValue == DISPATCH_START_STOP) {
-//				return opMode::opModeIdle;
-//			}
-
-			result = _registerHandler->readHandledRegister(REG_DISPATCH_RW_DISPATCH_MODE, &response);
-			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				if (response.unsignedShortValue == DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV) {
-					return opMode::opModePvCharge;
-				}
-				if (response.unsignedShortValue == DISPATCH_MODE_STATE_OF_CHARGE_CONTROL) {
-					return opMode::opModeTarget;
-				}
-				if (response.unsignedShortValue == DISPATCH_MODE_LOAD_FOLLOWING) {
-					return opMode::opModeLoadFollow;
-				}
-				if (response.unsignedShortValue == DISPATCH_MODE_MAXIMISE_OUTPUT) {
-					return opMode::opModeMaxOut;
-				}
-				if (response.unsignedShortValue == DISPATCH_MODE_NORMAL_MODE) {
-					return opMode::opModeNormal;
-				}
-				if (response.unsignedShortValue == DISPATCH_MODE_OPTIMISE_CONSUMPTION) {
-					return opMode::opModeOptCons;
-				}
-				if (response.unsignedShortValue == DISPATCH_MODE_MAXIMISE_CONSUMPTION) {
-					return opMode::opModeMaxCons;
-				}
-//				if (response.unsignedShortValue == DISPATCH_MODE_PV_POWER_SETTING) {
-//					return opMode::opModePvPower;
-//				}
-				if (response.unsignedShortValue == DISPATCH_MODE_NO_BATTERY_CHARGE) {
-					return opMode::opModeNoBattCharge;
-				}
+			switch (response.unsignedShortValue) {
+			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
+			case DISPATCH_MODE_PV_POWER_SETTING:
+				return opMode::opModePvCharge;
+			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
+				return opMode::opModeTarget;
+			case DISPATCH_MODE_LOAD_FOLLOWING:
+			case DISPATCH_MODE_NORMAL_MODE:
+				return opMode::opModeLoadFollow;
+			case DISPATCH_MODE_OPTIMISE_CONSUMPTION:
+			case DISPATCH_MODE_MAXIMISE_OUTPUT:
+			case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
+				return opMode::opModeMaxCharge;
+			case DISPATCH_MODE_NO_BATTERY_CHARGE:
+				return opMode::opModeNoCharge;
 			}
-		}
-		if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-#ifdef DEBUG_RS485
-			rs485Errors++;
-#endif // DEBUG_RS485
 #ifdef DEBUG
-			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpModeFromEss: read failed");
-			Serial.println(_debugOutput);
-		} else {
 			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpModeFromEss: Unhandled Dispatch Mode: %u/", response.unsignedShortValue);
 			Serial.print(_debugOutput);
 			Serial.println(response.dataValueFormatted);
 #endif
+			return opMode::opModeLoadFollow; // Just set to a "default" value.
 		}
+#ifdef DEBUG_RS485
+		rs485Errors++;
+#endif // DEBUG_RS485
+#ifdef DEBUG
+		snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpModeFromEss: read failed");
+		Serial.println(_debugOutput);
+#endif
 	}
 	// Not reached.
 	return (enum opMode)-1;

@@ -1213,28 +1213,18 @@ enum homeAssistantClass {
 };
 
 enum opMode {
-//	opModeIdle,
 	opModePvCharge,
 	opModeTarget,
 	opModeLoadFollow,
-	opModeMaxOut,
-	opModeNormal,
-	opModeOptCons,
-	opModeMaxCons,
-//	opModePvPower,
-	opModeNoBattCharge
+	opModeMaxCharge,
+	opModeNoCharge
 };
 
-//#define OP_MODE_DESC_IDLE		"Idle"
 #define OP_MODE_DESC_PV_CHARGE		"PV Charge"
 #define OP_MODE_DESC_TARGET		"Target SOC"
 #define OP_MODE_DESC_LOAD_FOLLOW	"Load Follow"
-#define OP_MODE_DESC_MAX_OUT		"Max Output"
-#define OP_MODE_DESC_NORMAL		"Normal"
-#define OP_MODE_DESC_OPT_CONS		"Opt Consumpt"
-#define OP_MODE_DESC_MAX_CONS		"Max Consumpt"
-//#define OP_MODE_DESC_PV_POWER		"PV Power"
-#define OP_MODE_DESC_NO_BATT_CHARGE	"No Charge"
+#define OP_MODE_DESC_MAX_CHARGE		"Max Charge"
+#define OP_MODE_DESC_NO_CHARGE		"No Charge"
 
 struct mqttState
 {
