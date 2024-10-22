@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.48";
+char _version[6] = "v2.49";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -94,6 +94,8 @@ uint32_t rs485InvalidValues = 0;
 uint32_t opCounter = 0;
 #endif // DEBUG_OPS
 
+//#define OP_DATA_AVG_CNT 4
+#define PUSH_FUDGE_FACTOR 200 // Watts
 struct {
 	opMode   a2mOpMode = opMode::opModeLoadFollow;
 	bool     a2mReadyToUseOpMode = false;
@@ -103,13 +105,19 @@ struct {
 	bool     a2mReadyToUsePwrCharge = false;
 	int32_t  a2mPwrDischarge = INVERTER_POWER_MAX_DISCHARGE;
 	bool     a2mReadyToUsePwrDischarge = false;
+	int32_t  a2mPwrPush = INVERTER_POWER_MAX_DISCHARGE;
+	bool     a2mReadyToUsePwrPush = false;
 
 	uint16_t essDispatchStart = DISPATCH_START_STOP;
 	uint16_t essDispatchMode = 0;
 	int32_t  essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
 	uint16_t essDispatchSoc = 0;      // Stored as ESS register value. (percent / 0.4)
 	uint16_t essBatterySoc = 0;       // Stored as ESS register value. (percent / 0.1)
-	int16_t  essBatteryPower = 0;
+	int16_t  essBatteryPower = 0;	// positive->discharge : negative->charge
+//	int16_t  essBatteryPowerAvg = 0;
+	int32_t  essGridPower = 0;	// positive->fromGrid : negative->toGrid
+//	int32_t  essGridPowerAvg = 0;
+	int32_t  essPvPower = 0;	// Positive
 } opData;
 
 /*
@@ -153,6 +161,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entitySocTarget,          "SOC_Target",           mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
 	{ mqttEntityId::entityChargePwr,          "Charge_Power",         mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
 	{ mqttEntityId::entityDischargePwr,       "Discharge_Power",      mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
+	{ mqttEntityId::entityPushPwr,            "Push_Power",           mqttUpdateFreq::updateFreqOneMin,  true,  homeAssistantClass::homeAssistantClassBox },
 	{ mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::updateFreqOneDay,  false, homeAssistantClass::homeAssistantClassInfo },
 	{ mqttEntityId::entityBatTemp,            "Battery_Temp",         mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
 	{ mqttEntityId::entityInverterTemp,       "Inverter_Temp",        mqttUpdateFreq::updateFreqFiveMin, false, homeAssistantClass::homeAssistantClassTemp },
@@ -341,6 +350,7 @@ void setup()
 	opData.a2mReadyToUseSocTarget = true;
 	opData.a2mReadyToUsePwrCharge = true;
 	opData.a2mReadyToUsePwrDischarge = true;
+	// Don't set opData.a2mReadyToUsePwrPush here as HA is only source.
 #endif // ! HA_IS_OP_MODE_AUTHORITY
 
 	gotResponse = readEssOpData();
@@ -408,6 +418,9 @@ loop()
 			}
 			if (!opData.a2mReadyToUsePwrDischarge) {
 				opData.a2mReadyToUsePwrDischarge = true;
+			}
+			if (!opData.a2mReadyToUsePwrPush) {
+				opData.a2mReadyToUsePwrPush = true;
 			}
 		}
 		// Read and transmit all entity data to MQTT
@@ -1171,41 +1184,51 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		} else {
 			result = _registerHandler->readHandledRegister(regNumberToRead, rs);
-			if (result == modbusRequestAndResponseStatusValues::notHandledRegister) {
-				rs->returnDataType = modbusReturnDataType::character;
-				strcpy(rs->characterValue, "Invalid register");
-				sprintf(rs->dataValueFormatted, "%s", rs->characterValue);
-				result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-			} else {
-				if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-					if (!strcmp(rs->dataValueFormatted, "Unknown")) {
-						switch (rs->returnDataType) {
-						case modbusReturnDataType::character:
-							sprintf(rs->dataValueFormatted, "Unknown (%s)", rs->characterValue);
-							break;
-						case modbusReturnDataType::signedInt:
-							sprintf(rs->dataValueFormatted, "Unknown (%ld)", rs->signedIntValue);
-							break;
-						case modbusReturnDataType::signedShort:
-							sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedShortValue);
-							break;
-						case modbusReturnDataType::unsignedInt:
-							sprintf(rs->dataValueFormatted, "Unknown (%lu)", rs->unsignedIntValue);
-							break;
-						case modbusReturnDataType::unsignedShort:
-							sprintf(rs->dataValueFormatted, "Unknown (%u)", rs->unsignedShortValue);
-							break;
-						case modbusReturnDataType::notDefined:
-							sprintf(rs->dataValueFormatted, "Unknown (XX)");
-							break;
-						}
+			switch (result) {
+			case modbusRequestAndResponseStatusValues::readDataRegisterSuccess:
+				if (!strcmp(rs->dataValueFormatted, "Unknown")) {
+					switch (rs->returnDataType) {
+					case modbusReturnDataType::character:
+						sprintf(rs->dataValueFormatted, "Unknown (%s)", rs->characterValue);
+						break;
+					case modbusReturnDataType::signedInt:
+						sprintf(rs->dataValueFormatted, "Unknown (%ld)", rs->signedIntValue);
+						break;
+					case modbusReturnDataType::signedShort:
+						sprintf(rs->dataValueFormatted, "Unknown (%d)", rs->signedShortValue);
+						break;
+					case modbusReturnDataType::unsignedInt:
+						sprintf(rs->dataValueFormatted, "Unknown (%lu)", rs->unsignedIntValue);
+						break;
+					case modbusReturnDataType::unsignedShort:
+						sprintf(rs->dataValueFormatted, "Unknown (%u)", rs->unsignedShortValue);
+						break;
+					case modbusReturnDataType::notDefined:
+						sprintf(rs->dataValueFormatted, "Unknown (XX)");
+						break;
 					}
-#ifdef DEBUG_RS485
-				} else {
-					rs485Errors++;
-#endif // DEBUG_RS485
 				}
+				break;
+			case modbusRequestAndResponseStatusValues::notHandledRegister:
+				strcpy(rs->dataValueFormatted, "Invalid register");
+				break;
+			case modbusRequestAndResponseStatusValues::noResponse:
+				strcpy(rs->dataValueFormatted, "No response");
+				break;
+			case modbusRequestAndResponseStatusValues::responseTooShort:
+				strcpy(rs->dataValueFormatted, "Resp too short");
+				break;
+			case modbusRequestAndResponseStatusValues::slaveError:
+				strcpy(rs->dataValueFormatted, "Slave Error");
+				break;
+			case modbusRequestAndResponseStatusValues::invalidFrame:
+				strcpy(rs->dataValueFormatted, "Invalid Frame");
+				break;
+			default:
+				sprintf(rs->dataValueFormatted, "Unexpected result: %d", result);
+				break;
 			}
+			result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		}
 #endif // DEBUG_NO_RS485
 		break;
@@ -1418,6 +1441,12 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		}
 #endif // DEBUG_NO_RS485
 		break;
+	case mqttEntityId::entityPushPwr:
+		rs->returnDataType = modbusReturnDataType::signedInt;
+		rs->signedIntValue = opData.a2mPwrPush;
+		sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+		break;
 	case mqttEntityId::entityDischargePwr:
 		rs->returnDataType = modbusReturnDataType::signedInt;
 		rs->signedIntValue = opData.a2mPwrDischarge;
@@ -1465,14 +1494,10 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityPvPwr:
-#ifdef DEBUG_NO_RS485
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		rs->signedIntValue = 3388;
+		rs->signedIntValue = opData.essPvPower;
 		sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-#else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_CUSTOM_TOTAL_SOLAR_POWER, rs);
-#endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityGridEnergyTo:
 #ifdef DEBUG_NO_RS485
@@ -1495,14 +1520,10 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityGridPwr:
-#ifdef DEBUG_NO_RS485
 		rs->returnDataType = modbusReturnDataType::signedInt;
-		rs->signedIntValue = 1221;
+		rs->signedIntValue = opData.essGridPower;
 		sprintf(rs->dataValueFormatted, "%ld", rs->signedIntValue);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-#else // DEBUG_NO_RS485
-		result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, rs);
-#endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityGridAvail:
 #ifdef DEBUG_NO_RS485
@@ -1950,11 +1971,11 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		break;
 	case mqttEntityId::entityOpMode:
 		snprintf(stateAddition, sizeof(stateAddition),
-			 ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]"
+			 ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]"
 #ifdef HA_IS_OP_MODE_AUTHORITY
 			 ", \"retain\": \"true\""
 #endif // HA_IS_OP_MODE_AUTHORITY
-			 , OP_MODE_DESC_LOAD_FOLLOW, OP_MODE_DESC_TARGET,
+			 , OP_MODE_DESC_LOAD_FOLLOW, OP_MODE_DESC_TARGET, OP_MODE_DESC_PUSH,
 			 OP_MODE_DESC_PV_CHARGE, OP_MODE_DESC_MAX_CHARGE, OP_MODE_DESC_NO_CHARGE);
 		break;
 	case mqttEntityId::entitySocTarget:
@@ -1982,6 +2003,16 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"retain\": \"true\""
 #endif // HA_IS_OP_MODE_AUTHORITY
 			 ,
+			 0, INVERTER_POWER_MAX);
+		break;
+	case mqttEntityId::entityPushPwr:
+		snprintf(stateAddition, sizeof(stateAddition),
+			 ", \"device_class\": \"power\""
+			 ", \"state_class\": \"measurement\""
+			 ", \"unit_of_measurement\": \"W\""
+			 ", \"icon\": \"mdi:lightning-bolt-circle\""
+			 ", \"min\": %d, \"max\": %d"
+			 ", \"retain\": \"true\"",
 			 0, INVERTER_POWER_MAX);
 		break;
 #ifdef DEBUG_WIFI
@@ -2129,6 +2160,10 @@ readEssOpData()
 	opData.essDispatchSoc = 50 / DISPATCH_SOC_MULTIPLIER;
 	opData.essBatterySoc = 65 / BATTERY_SOC_MULTIPLIER;
 	opData.essBatteryPower = -1357;
+//	opData.essBatteryPowerAvg = -1357;
+	opData.essGridPower = -1368;
+//	opData.essGridPowerAvg = -1368;
+	opData.essPvPower = -1379;
 	return true;
 #else // DEBUG_NO_RS485
 	static unsigned long lastRun = 0;
@@ -2163,9 +2198,39 @@ readEssOpData()
 	}
 	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 		opData.essBatteryPower = response.signedShortValue;
+		result = _registerHandler->readHandledRegister(REG_GRID_METER_R_TOTAL_ACTIVE_POWER_1, &response);
+	}
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essGridPower = response.signedIntValue;
+		result = _registerHandler->readHandledRegister(REG_CUSTOM_TOTAL_SOLAR_POWER, &response);
+	}
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		opData.essPvPower = response.signedIntValue;
 	}
 
-	if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+//		static int16_t  essBatteryPowerAvgArray[OP_DATA_AVG_CNT] = {0};
+//		static int32_t  essGridPowerAvgArray[OP_DATA_AVG_CNT] = {0};
+//		static uint32_t avgIndex = 0;
+//		uint32_t cnt;
+
+//		essBatteryPowerAvgArray[avgIndex % OP_DATA_AVG_CNT] = opData.essBatteryPower;
+//		essGridPowerAvgArray[avgIndex % OP_DATA_AVG_CNT] = opData.essGridPower;
+//		avgIndex++;
+//		if (avgIndex > OP_DATA_AVG_CNT) {
+//			cnt = OP_DATA_AVG_CNT;
+//		} else {
+//			cnt = avgIndex;
+//		}
+//		opData.essBatteryPowerAvg = 0;
+//		opData.essGridPowerAvg = 0;
+//		for (int i = 0; i < cnt; i++) {
+//			opData.essBatteryPowerAvg += essBatteryPowerAvgArray[i];
+//			opData.essGridPowerAvg += essGridPowerAvgArray[i];
+//		}
+//		opData.essBatteryPowerAvg /= cnt;
+//		opData.essGridPowerAvg /= cnt;
+	} else {
 #ifdef DEBUG_RS485
 		rs485Errors++;
 #endif // DEBUG_RS485
@@ -2285,6 +2350,9 @@ sendDataFromMqttState(mqttState *singleEntity, bool doHomeAssistant)
 		if (!opData.a2mReadyToUsePwrDischarge && (singleEntity->entityId == mqttEntityId::entityDischargePwr)) {
 			skip = true;
 		}
+		if (!opData.a2mReadyToUsePwrPush && (singleEntity->entityId == mqttEntityId::entityPushPwr)) {
+			skip = true;
+		}
 		if (!skip) {
 			snprintf(topic, sizeof(topic), DEVICE_NAME "/%s/%s/state", haUniqueId, singleEntity->mqttName);
 			result = addState(singleEntity, &resultAddedToPayload);
@@ -2387,6 +2455,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 		case mqttEntityId::entitySocTarget:
 		case mqttEntityId::entityChargePwr:
 		case mqttEntityId::entityDischargePwr:
+		case mqttEntityId::entityPushPwr:
 		case mqttEntityId::entityRegNum:
 			singleInt32 = strtol(mqttIncomingPayload, &endPtr, 10);
 			if ((endPtr == mqttIncomingPayload) || ((singleInt32 == 0) && (errno != 0))) {
@@ -2459,6 +2528,20 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				} else {
 					opData.a2mPwrDischarge = singleInt32;
 					opData.a2mReadyToUsePwrDischarge = true;
+				}
+				break;
+			case mqttEntityId::entityPushPwr:
+				if ((singleInt32 < 0) || (singleInt32 > INVERTER_POWER_MAX)) {
+#ifdef DEBUG
+					sprintf(_debugOutput, "HA sent invalid Push Power! %ld", singleInt32);
+					Serial.println(_debugOutput);
+#endif
+#ifdef DEBUG_CALLBACKS
+					badCallbacks++;
+#endif // DEBUG_CALLBACKS
+				} else {
+					opData.a2mPwrPush = singleInt32;
+					opData.a2mReadyToUsePwrPush = true;
 				}
 				break;
 			case mqttEntityId::entityRegNum:
@@ -2548,6 +2631,9 @@ getOpModeDesc(char *dest, size_t size, enum opMode mode)
 	case opMode::opModeTarget:
 		strlcpy(dest, OP_MODE_DESC_TARGET, size);
 		break;
+	case opMode::opModePush:
+		strlcpy(dest, OP_MODE_DESC_PUSH, size);
+		break;
 	case opMode::opModeLoadFollow:
 		strlcpy(dest, OP_MODE_DESC_LOAD_FOLLOW, size);
 		break;
@@ -2567,6 +2653,8 @@ lookupOpMode(char *opModeDesc)
 		return opMode::opModePvCharge;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_TARGET))
 		return opMode::opModeTarget;
+	if (!strcmp(opModeDesc, OP_MODE_DESC_PUSH))
+		return opMode::opModePush;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_LOAD_FOLLOW))
 		return opMode::opModeLoadFollow;
 	if (!strcmp(opModeDesc, OP_MODE_DESC_MAX_CHARGE))
@@ -2604,19 +2692,36 @@ setEssOpMode(void)
 	case opMode::opModeTarget:		// Honors Power and SOC
 		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;	// Honors Power and SOC
 		break;
+	case opMode::opModePush:		// Honors PushPwr and SOC
+		if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) > opData.a2mSocTarget) {
+			int32_t newBatteryPower = opData.essBatteryPower + opData.essGridPower + opData.a2mPwrPush;
+			if (newBatteryPower < opData.a2mPwrPush) {
+				newBatteryPower = opData.a2mPwrPush;
+			}
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + newBatteryPower;
+			essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;	// Honors Power and SOC
+//			if (opData.essPvPower < opData.a2mPwrPush) {
+// DAVE - is this dumb?
+//				essDispatchActivePower += (PUSH_FUDGE_FACTOR / 2);	// If PV is low, try to stay ahead of decline.
+//			}
+		} else {
+			essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honor Power or SOC
+		}
+		break;
 	case opMode::opModeLoadFollow:		// Honors Power and SOC
 		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;			// Honors Power but not SOC
 		break;
 	case opMode::opModeMaxCharge:		// Doesn't honors Power or SOC
-		essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;		// Doesn't honors Power or SOC
+		essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;		// Doesn't honor Power or SOC
 		break;
 	case opMode::opModeNoCharge:		// Doesn't honors Power or SOC
-		essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honors Power or SOC
+		essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honor Power or SOC
 		break;
 	default:
 		return; // Shouldn't happen!  opMode is corrupt.
 	}
 
+// DAVE - write all these as a single command!
 	result = _registerHandler->writeRawSingleRegister(REG_DISPATCH_RW_DISPATCH_START, DISPATCH_START_START, &response);
 
 	if (result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess) {
@@ -2658,7 +2763,7 @@ checkEssOpMode(void)
 	uint16_t essDispatchMode;
 	int32_t essDispatchActivePower;
 
-	if (!opData.a2mReadyToUseOpMode || !opData.a2mReadyToUseSocTarget || !opData.a2mReadyToUsePwrCharge || !opData.a2mReadyToUsePwrDischarge) {
+	if (!opData.a2mReadyToUseOpMode || !opData.a2mReadyToUseSocTarget || !opData.a2mReadyToUsePwrCharge || !opData.a2mReadyToUsePwrDischarge || !opData.a2mReadyToUsePwrPush) {
 		return true;  // Don't set anything if opData isn't ready.
 	}
 
@@ -2681,6 +2786,26 @@ checkEssOpMode(void)
 	case opMode::opModeTarget:
 		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
 		break;
+	case opMode::opModePush:
+		if ((opData.essBatterySoc * BATTERY_SOC_MULTIPLIER) > opData.a2mSocTarget) {
+			int32_t newBatteryPower = opData.essBatteryPower + opData.essGridPower + opData.a2mPwrPush;
+			if (newBatteryPower < opData.a2mPwrPush) {
+				newBatteryPower = opData.a2mPwrPush;
+			}
+			if (newBatteryPower > INVERTER_POWER_MAX) {
+				newBatteryPower = INVERTER_POWER_MAX; // Should never happen, but just to be safe...
+			}
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + newBatteryPower;
+			essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;	// Honors Power and SOC
+			if ((essDispatchActivePower < (opData.essDispatchActivePower + PUSH_FUDGE_FACTOR)) &&
+			    (essDispatchActivePower > (opData.essDispatchActivePower - PUSH_FUDGE_FACTOR))) {
+				essDispatchActivePower = opData.essDispatchActivePower;
+			}
+		} else {
+// DAVE - this causes draw from grid. Check if "NoCharge" actually honors ActivePower and if so, set it.  But at what SOC do I stop?
+			essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honor Power or SOC
+		}
+		break;
 	case opMode::opModeLoadFollow:
 		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
 		break;
@@ -2702,7 +2827,7 @@ checkEssOpMode(void)
 		return false;
 	}
 
-	if (opData.essDispatchSoc != (opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER)) {
+	if (opData.essDispatchSoc != (uint16_t)(opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER)) {
 		return false;
 	}
 
@@ -2857,6 +2982,7 @@ getRetain(enum mqttEntityId entityId)
 	case entitySocTarget:
 	case entityChargePwr:
 	case entityDischargePwr:
+	case entityPushPwr:
 	case entityBatCap:
 	case entityBatTemp:
 	case entityInverterTemp:

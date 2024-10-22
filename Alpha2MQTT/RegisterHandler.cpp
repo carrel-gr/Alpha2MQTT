@@ -1129,6 +1129,12 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		break;
 	}
 #endif // EMS_35_36
+	case REG_INVERTER_HOME_R_PV_TOTAL_POWER_1:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedInt;
+		rs->registerCount = 2;
+		break;
+	}
 	case REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1:
 	{
 		rs->returnDataType = modbusReturnDataType::character;
@@ -1145,6 +1151,12 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::character;
 		rs->registerCount = 10;
+		break;
+	}
+	case REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_1:
+	{
+		rs->returnDataType = modbusReturnDataType::character;
+		rs->registerCount = 5;
 		break;
 	}
 	case REG_SYSTEM_INFO_RW_FEED_INTO_GRID_PERCENT:
@@ -1205,6 +1217,12 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedShort;
 		rs->registerCount = 1;
+		break;
+	}
+	case REG_SYSTEM_INFO_R_EMS_VERSION_LOW_SUFFIX_1:
+	{
+		rs->returnDataType = modbusReturnDataType::character;
+		rs->registerCount = 4;
 		break;
 	}
 	case REG_SYSTEM_CONFIG_RW_MAX_FEED_INTO_GRID_PERCENT:
@@ -1440,6 +1458,18 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	{
 		rs->returnDataType = modbusReturnDataType::unsignedInt;
 		rs->registerCount = 2;
+		break;
+	}
+	case REG_DISPATCH_RW_DISPATCH_PARA_7:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
+		break;
+	}
+	case REG_DISPATCH_RW_DISPATCH_PARA_8:
+	{
+		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->registerCount = 1;
 		break;
 	}
 	case REG_AUXILIARY_R_EMS_DI0:
@@ -3469,11 +3499,17 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			break;
 		}
 #endif // EMS_35_36
+		case REG_INVERTER_HOME_R_PV_TOTAL_POWER_1:
+		{
+			// Type: Unsigned Integer
+			// 1W/bit
+			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
+			break;
+		}
 		case REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1:
 		{
 			// Type: Unsigned Char
 			// //
-			// Brings back nothing
 			strcpy(rs->dataValueFormatted, rs->characterValue);
 			break;
 		}
@@ -3485,7 +3521,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Char
 			// //
-			// Brings back nothing
 			strcpy(rs->dataValueFormatted, rs->characterValue);
 			break;
 		}
@@ -3497,7 +3532,14 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Char
 			// //
-			// Brings back nothing
+			strcpy(rs->dataValueFormatted, rs->characterValue);
+			break;
+		}
+
+		case REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_1:
+		{
+			// Type: Unsigned Char
+			// //
 			strcpy(rs->dataValueFormatted, rs->characterValue);
 			break;
 		}
@@ -3580,6 +3622,13 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// //
 			// Always returns zero for me
 			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_SYSTEM_INFO_R_EMS_VERSION_LOW_SUFFIX_1:
+		{
+			// Type: Unsigned Char
+			// //
+			strcpy(rs->dataValueFormatted, rs->characterValue);
 			break;
 		}
 		case REG_SYSTEM_CONFIG_RW_MAX_FEED_INTO_GRID_PERCENT:
@@ -4076,6 +4125,20 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			sprintf(rs->dataValueFormatted, "%lu", rs->unsignedIntValue);
 			break;
 		}
+		case REG_DISPATCH_RW_DISPATCH_PARA_7:
+		{
+			// Type: Unsigned Short
+			//
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
+		case REG_DISPATCH_RW_DISPATCH_PARA_8:
+		{
+			// Type: Unsigned Short
+			//
+			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			break;
+		}
 
 
 
@@ -4426,6 +4489,11 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			case GRID_REGULATION_AL_37:
 			{
 				strcpy(rs->dataValueFormatted, GRID_REGULATION_AL_37_DESC);
+				break;
+			}
+			case GRID_REGULATION_AL_38:
+			{
+				strcpy(rs->dataValueFormatted, GRID_REGULATION_AL_38_DESC);
 				break;
 			}
 			}

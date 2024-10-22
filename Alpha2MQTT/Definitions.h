@@ -59,7 +59,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
 //#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
 //#define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
-//#define DEBUG_OPS     // Enable extra debug for opModes
+#define DEBUG_OPS     // Enable extra debug for opModes
 //#define DEBUG_RS485	// Enable extra debug on display and via MQTT
 //#define DEBUG_NO_RS485	// Fake-out all RS485 comms
 //#define DEBUG_LEVEL2 // For serial flooding action
@@ -77,6 +77,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // MAX charge is the power you choose to charge at when mode is "SOC Control" or "PV Only"
 // MAX discharge is the max power output when in "Load Follow" mode.  (This is NOT the max when grid is offline.)
 // charge/discharge are configurable to anything less than the system rating.  TBD: Make this configurable via MQTT.
+// DAVE - clean up comments, and can I remove charge/discharge defines??
 #define INVERTER_POWER_MAX 9600
 #define INVERTER_POWER_MAX_CHARGE 9000
 #define INVERTER_POWER_MAX_DISCHARGE 9000
@@ -435,9 +436,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_1								0x0451	// Reserve							// 4 Bytes		// Unsigned Integer
 //#define REG_INVERTER_HOME_R_INVERTER_FAULT_EXTEND_4_2								0x0452	// Reserve
 #endif // EMS_35_36
+#define REG_INVERTER_HOME_R_PV_TOTAL_POWER_1									0x0453	// 1w/bit							// 4 Bytes		// Unsigned Integer
+//#define REG_INVERTER_HOME_R_PV_TOTAL_POWER_2									0x0454	// 1w/bit
 
 // Inverter Information
-																					// labelled in documentation as starting 0x0680, believe this wrong.
 #define REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_1								0x0640	//										// 10 Bytes		// Unsigned Char
 //#define REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_2								0x0641	//
 //#define REG_INVERTER_INFO_R_MASTER_SOFTWARE_VERSION_3								0x0642	//
@@ -458,6 +460,11 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define REG_INVERTER_INFO_R_SERIAL_NUMBER_8											0x0651	//
 //#define REG_INVERTER_INFO_R_SERIAL_NUMBER_9											0x0652	//
 //#define REG_INVERTER_INFO_R_SERIAL_NUMBER_10										0x0653	//
+#define REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_1										0x0654	//										// 10 Bytes		// Unsigned Char
+//#define REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_2										0x0655	//
+//#define REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_3										0x0656	//
+//#define REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_4										0x0657	//
+//#define REG_INVERTER_INFO_R_ARM_SOFTWARE_VERSION_5										0x0658	//
 
 
 // ***********
@@ -486,6 +493,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REG_SYSTEM_INFO_R_EMS_VERSION_MIDDLE										0x074C	// 										// 2 Bytes		// Unsigned Short
 #define REG_SYSTEM_INFO_R_EMS_VERSION_LOW											0x074D	// 										// 2 Bytes		// Unsigned Short
 #define REG_SYSTEM_INFO_R_PROTOCOL_VERSION											0x074E	// 										// 2 Bytes		// Unsigned Short
+#define REG_SYSTEM_INFO_R_EMS_VERSION_LOW_SUFFIX_1										0x074F	// 										// 8 Bytes		// String
+//#define REG_SYSTEM_INFO_R_EMS_VERSION_LOW_SUFFIX_2										0x0750
+//#define REG_SYSTEM_INFO_R_EMS_VERSION_LOW_SUFFIX_3										0x0751
+//#define REG_SYSTEM_INFO_R_EMS_VERSION_LOW_SUFFIX_4										0x0752
 
 
 // System Configuration
@@ -541,6 +552,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REG_DISPATCH_RW_DISPATCH_SOC												0x0886	// 0.4%/bit, 95=SOC of 38%				// 2 Bytes		// Unsigned Short
 #define REG_DISPATCH_RW_DISPATCH_TIME_1												0x0887	// 1S/bit								// 4 Bytes		// Unsigned Int
 //#define REG_DISPATCH_RW_DISPATCH_TIME_2												0x0888	// 1S/bit
+#define REG_DISPATCH_RW_DISPATCH_PARA_7												0x0889	// <<Note29>>		// 2 Bytes		// Unsigned Short
+#define REG_DISPATCH_RW_DISPATCH_PARA_8												0x088A	// <<Note29>>		// 2 Bytes		// Unsigned Short
 
 // Auxiliary
 #define REG_AUXILIARY_W_EMS_DO0														0x08B0	// by-pass control function				// 2 Bytes		// Unsigned Short
@@ -947,6 +960,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define GRID_REGULATION_AL_36_DESC "UL1741-Rule 21"
 #define GRID_REGULATION_AL_37 37
 #define GRID_REGULATION_AL_37_DESC "UL1741-Hawaiian"
+#define GRID_REGULATION_AL_38 38
+#define GRID_REGULATION_AL_38_DESC "EN50549"
 
 #ifdef EMS_35_36
 // Note 26: Household Inverter fault codes
@@ -988,6 +1003,89 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_15_DESC "fac_failure"
 #define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_16 16
 #define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_16_DESC "external_fan_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_17 17
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_17_DESC "afci_device_failure"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_18 18
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_18_DESC "bus_soft_timeout"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_19 19
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_19_DESC "dc_bus_short"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_20 20
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_20_DESC "inv_soft_timeout"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_21 21
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_21_DESC "grid_load_reverse"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_22 22
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_22_DESC "ipe_reverse"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_23 23
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_23_DESC "ems_sci"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_24 24
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_24_DESC "ems_can"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_25 25
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_25_DESC "sps_12v_ref"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_26 26
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_26_DESC "1p5v_ref"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_27 27
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_27_DESC "0p5v_ref"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_28 28
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_28_DESC "ntc_loss"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_29 29
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_29_DESC "inv_hct"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_30 30
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_30_DESC "load_ct"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_31 31
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_1_BIT_31_DESC "pv1_ct"
+
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_0 0
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_0_DESC "pv2_ct"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_1 1
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_1_DESC "bat1_ct"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_2 2
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_2_DESC "bat2_ct"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_3 3
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_3_DESC "bypass_rly"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_4 4
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_4_DESC "load_rly"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_5 5
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_5_DESC "npe_rly"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_6 6
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_6_DESC "dci"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_7 7
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_7_DESC "watchdog"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_8 8
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_8_DESC "inv_open_loop"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_9 9
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_9_DESC "sw_consistency"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_10 10
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_10_DESC "n_n_reverse_lost"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_11 11
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_11_DESC "ini_fault"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_12 12
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_12_DESC "dsp_b_fault"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_13 13
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_13_DESC "inverter_circuit_abnormal"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_14 14
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_14_DESC "boost_circuit_abnormal"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_15 15
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_15_DESC "data_storage_error"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_16 16
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_16_DESC "para_can"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_17 17
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_17_DESC "para_synsignal_wrong"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_18 18
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_18_DESC "para_sw_diff"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_19 19
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_19_DESC "para_module_wrong"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_20 20
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_20_DESC "para_negative_power"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_21 21
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_21_DESC "para_multi_master"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_22 22
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_22_DESC "para_turnon_wrong"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_23 23
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_23_DESC "hw_ver_diff"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_24 24
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_24_DESC "bus_unbalance"
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_25 25
+#define HOUSEHOLD_INVERTER_FAULT_EXTEND_2_BIT_25_DESC "inv_line_short"
 #endif // EMS_35_36
 
 // Note 28: Battery Warning
@@ -999,7 +1097,11 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define BATTERY_WARNING_BIT_5 "Charge over current"
 #define BATTERY_WARNING_BIT_6 "Cell over voltage"
 #define BATTERY_WARNING_BIT_7 "Cell low voltage"
-#define BATTERY_WARNING_BIT_8 "No soc calibration"
+#define BATTERY_WARNING_BIT_8 "sw_inconsistence"
+#define BATTERY_WARNING_BIT_9 "mos_temperature_sensor_error"
+#define BATTERY_WARNING_BIT_10 "soc_inconsistence"
+#define BATTERY_WARNING_BIT_11 "bms_sci_lost"
+#define BATTERY_WARNING_BIT_12 "bms_fan_err"
 
 // MQTT Subscriptions
 #define MQTT_SUB_HOMEASSISTANT "homeassistant/status"
@@ -1176,8 +1278,10 @@ enum mqttEntityId {
 	entityPvEnergy,
 	entityOpMode,
 	entitySocTarget,
+// DAVE - do I keep charge/discharge power?  If not, then do I keep soc target mode?
 	entityChargePwr,
 	entityDischargePwr,
+	entityPushPwr,
 	entityBatCap,
 	entityBatTemp,
 	entityInverterTemp,
@@ -1217,6 +1321,7 @@ enum homeAssistantClass {
 enum opMode {
 	opModePvCharge,
 	opModeTarget,
+	opModePush,
 	opModeLoadFollow,
 	opModeMaxCharge,
 	opModeNoCharge
@@ -1224,6 +1329,7 @@ enum opMode {
 
 #define OP_MODE_DESC_PV_CHARGE		"PV Charge"
 #define OP_MODE_DESC_TARGET		"Target SOC"
+#define OP_MODE_DESC_PUSH		"Push To Grid"
 #define OP_MODE_DESC_LOAD_FOLLOW	"Load Follow"
 #define OP_MODE_DESC_MAX_CHARGE		"Max Charge"
 #define OP_MODE_DESC_NO_CHARGE		"No Charge"
