@@ -21,23 +21,33 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #endif
 
 
+/*************************************************/
+/* Start customizations here.                    */
+/*************************************************/
+
+// Update with your Wifi details
+#define WIFI_SSID		"SSID"
+#define WIFI_PASSWORD	"PASS"
+
+// Update with your MQTT Broker details
+#define MQTT_SERVER	"192.168.197.98"
+#define MQTT_PORT	1883
+#define MQTT_USERNAME	"Alpha"			// Empty string for none.
+#define MQTT_PASSWORD	"RainMan7"
+
 // Compiling for ESP8266 or ESP32?
 #define MP_ESP32
 //#define MP_ESP8266
 #if (!defined MP_ESP8266) && (!defined MP_ESP32)
 #error You must specify the microprocessor in use
 #endif
-
 #if (defined MP_ESP8266) && (defined MP_ESP32)
 #error You must only select one microprocessor from the list
 #endif
+
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
+// Don't set this if using the  ESP8266 64x48 display.
 #define LARGE_DISPLAY
-
-// Set your EMS version.  Either EMS2.5 or EMS3.5/EMS3.6
-// If 3.5/3.6 is not set, then you get 2.5
-#define EMS_35_36
-
 #ifdef LARGE_DISPLAY
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -55,6 +65,16 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // When HA is not the authority, then on reboot, read the ESS state and tell HA.
 #define HA_IS_OP_MODE_AUTHORITY
 
+// The ESP8266 has limited memory and so reserving lots of RAM to build a payload and MQTT buffer causes out of memory exceptions.
+// 4096 works well given the RAM requirements of Alpha2MQTT.
+// If you aren't using an ESP8266 you may be able to increase this.
+// At 4096 (4095 usable) you can request up to around 70 to 80 registers on a schedule or by request.
+// Alpha2MQTT on boot will request a buffer size of (MAX_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE) for MQTT, and
+// MAX_MQTT_PAYLOAD_SIZE for building payloads.  If these fail and your device doesn't boot, you can assume you've set this too high.
+#define MAX_MQTT_PAYLOAD_SIZE 4096
+#define MIN_MQTT_PAYLOAD_SIZE 512
+#define MQTT_HEADER_SIZE 512
+
 #define DEBUG
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
 //#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
@@ -65,28 +85,20 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define DEBUG_LEVEL2 // For serial flooding action
 //#define DEBUG_OUTPUT_TX_RX
 
-// The SOC Target value is a percent value.  Define MIN/MAX for HA
+// The SOC Target value is a percent value.  Define MIN/MAX range for what HA can use.
 #define SOC_TARGET_MAX 100
 #define SOC_TARGET_MIN 30
 
-// Set your inverters MAX power output and MAX charge/discharge rates
+// Set your EMS version.  Either EMS2.5 or EMS3.5/EMS3.6
+// If 3.5/3.6 is not set, then you get 2.5
+#define EMS_35_36
+
+// Set your inverters MAX power output.
 // MAX power is the value that AlphaESS rates that product at.
 //	TBD: There should be a way to read this from the ESS.
 //	It appears that for the SMILE-SP(B) the 2nd-5th digits of the inverter (not EMS) serial number, are the max power
 //	e.g. "79600ABP225R0061"  <- max power is 9600
-// MAX charge is the power you choose to charge at when mode is "SOC Control" or "PV Only"
-// MAX discharge is the max power output when in "Load Follow" mode.  (This is NOT the max when grid is offline.)
-// charge/discharge are configurable to anything less than the system rating.  TBD: Make this configurable via MQTT.
-// DAVE - clean up comments, and can I remove charge/discharge defines??
 #define INVERTER_POWER_MAX 9600
-#define INVERTER_POWER_MAX_CHARGE 9000
-#define INVERTER_POWER_MAX_DISCHARGE 9000
-#if INVERTER_POWER_MAX_CHARGE > INVERTER_POWER_MAX
-#error INVERTER_POWER_MAX_CHARGE cannot exceed INVERTER_POWER_MAX
-#endif
-#if INVERTER_POWER_MAX_DISCHARGE > INVERTER_POWER_MAX
-#error INVERTER_POWER_MAX_DISCHARGE cannot exceed INVERTER_POWER_MAX
-#endif
 
 // If values for some registers such as voltage or temperatures appear to be out by a decimal place or two, try the following:
 // Documentation declares 1V - However Presume 0.1 as result appears to reflect this.  I.e. my voltage reading was 2421, * 0.1 for 242.1
@@ -118,6 +130,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // Most all battery SOC values use this multiplier.  Do note that DISPATCH_SOC_MULTIPLIER (below) is different
 #define BATTERY_SOC_MULTIPLIER 0.1
 
+// I beg to differ on this, I'd say it's more 0.396 based on my tests
+// However make it easily customisable here
+#define DISPATCH_SOC_MULTIPLIER 0.4
+//#define DISPATCH_SOC_MULTIPLIER 0.396
 
 // After some liaison with a user of Alpha2MQTT on a 115200 baud rate, this fixed inconsistent retrieval
 // such as sporadic NO-RESP.  It works by introducing a delay between requests sent to the inverter meaning it
@@ -126,17 +142,6 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // If you want to make use of it, uncomment the next line and change 80 as necessary
 //#define REQUIRE_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL
 #define REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL 80
-
-// Update with your Wifi details
-#define WIFI_SSID		"SSID"
-#define WIFI_PASSWORD	"PASS"
-
-// Update with your MQTT Broker details
-#define MQTT_SERVER	"192.168.197.98"
-#define MQTT_PORT	1883
-#define MQTT_USERNAME	"Alpha"			// Empty string for none.
-#define MQTT_PASSWORD	"RainMan7"
-
 
 // The device name is used as the MQTT base topic and presence on the network.
 // You can have more than one Alpha2MQTT on your network without changing this.
@@ -150,25 +155,8 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // Default address of inverter is 0x55 as per Alpha Modbus documentation.  If you have altered it, reflect that change here.
 #define ALPHA_SLAVE_ID 0x55
 
-// The ESP8266 has limited memory and so reserving lots of RAM to build a payload and MQTT buffer causes out of memory exceptions.
-// 4096 works well given the RAM requirements of Alpha2MQTT.
-// If you aren't using an ESP8266 you may be able to increase this.
-// At 4096 (4095 usable) you can request up to around 70 to 80 registers on a schedule or by request.
-// Alpha2MQTT on boot will request a buffer size of (MAX_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE) for MQTT, and
-// MAX_MQTT_PAYLOAD_SIZE for building payloads.  If these fail and your device doesn't boot, you can assume you've set this too high.
-#define MAX_MQTT_PAYLOAD_SIZE 4096
-#define MIN_MQTT_PAYLOAD_SIZE 512
-#define MQTT_HEADER_SIZE 512
-
-
 // x 50mS to wait for RS485 input chars.  300ms as per Modbus documentation, but I got timeouts on that.  However 400ms works without issue
 #define RS485_TRIES 8 // 16
-
-// I beg to differ on this, I'd say it's more 0.396 based on my tests
-// However make it easily customisable here
-//#define DISPATCH_SOC_MULTIPLIER 0.4
-#define DISPATCH_SOC_MULTIPLIER 0.396
-
 
 // A user informed me that their router leverages leases on network connections which can't be disabled.
 // I.e. when lease expires, WiFi doesn't drop but data stops.
@@ -176,13 +164,9 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define FORCE_RESTART
 #define FORCE_RESTART_HOURS 49
 
-
-//#if (!defined INVERTER_SMILE_B3) && (!defined INVERTER_SMILE5) && (!defined INVERTER_SMILE_T10) && (!defined INVERTER_STORION_T30)
-//#error You must specify the inverter type.
-//#endif
-
-
-
+/*************************************************/
+/* Shouldn't need to change anything below this. */
+/*************************************************/
 
 // Handled Registers as per 1.23 documentation
 // Network meter - configuration
@@ -1103,9 +1087,6 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define BATTERY_WARNING_BIT_11 "bms_sci_lost"
 #define BATTERY_WARNING_BIT_12 "bms_fan_err"
 
-// MQTT Subscriptions
-#define MQTT_SUB_HOMEASSISTANT "homeassistant/status"
-
 // Frame and Function Codes
 #define MAX_FRAME_SIZE_ZERO_INDEXED 63
 #define MIN_FRAME_SIZE_ZERO_INDEXED 4
@@ -1243,6 +1224,9 @@ struct modbusRequestAndResponse
 	char dataValueFormatted[MAX_FORMATTED_DATA_VALUE_LENGTH] = "";
 };
 
+// MQTT HA Subscription - Lets us know if HA restarts.
+#define MQTT_SUB_HOMEASSISTANT "homeassistant/status"
+
 enum mqttEntityId {
 #ifdef DEBUG_FREEMEM
 	entityFreemem,
@@ -1278,7 +1262,6 @@ enum mqttEntityId {
 	entityPvEnergy,
 	entityOpMode,
 	entitySocTarget,
-// DAVE - do I keep charge/discharge power?  If not, then do I keep soc target mode?
 	entityChargePwr,
 	entityDischargePwr,
 	entityPushPwr,
@@ -1306,7 +1289,7 @@ enum mqttUpdateFreq {
 enum homeAssistantClass {
 	homeAssistantClassEnergy,
 	homeAssistantClassPower,
-	homeAssistantClassBinaryPower,
+	homeAssistantClassBinaryProblem,
 	homeAssistantClassBattery,
 	homeAssistantClassVoltage,
 	homeAssistantClassCurrent,
