@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.50";
+char _version[6] = "v2.51";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -874,6 +874,9 @@ updateRunstate()
 			case DISPATCH_MODE_NO_BATTERY_CHARGE:
 				dMode = "No Bat Chg";
 				break;
+			case DISPATCH_MODE_BURNIN_MODE:
+				dMode = "Burnin";
+				break;
 			default:
 				dMode = "BadMode";
 				break;
@@ -1019,6 +1022,9 @@ void updateRunstate()
 					break;
 				case DISPATCH_MODE_NO_BATTERY_CHARGE:
 					dMode = "No Bat Chg";
+					break;
+				case DISPATCH_MODE_BURNIN_MODE:
+					dMode = "Burnin";
 					break;
 				default:
 					strcpy(line2, "BadMode");
@@ -2843,7 +2849,6 @@ getA2mOpDataFromEss(void)
 		if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
 			switch (response.unsignedShortValue) {
 			case DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV:
-			case DISPATCH_MODE_PV_POWER_SETTING:
 				opData.a2mOpMode = opMode::opModePvCharge;
 				break;
 			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:

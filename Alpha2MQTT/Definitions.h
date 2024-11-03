@@ -845,26 +845,54 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // Note7 - DISPATCH MODE LOOKUP
 #define DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV 1
 #define DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC "Only charge via PV"
+// Battery is not allowed to discharge (Pdispatch < 32000).
+// After the PV supplies the load, the excess energy is used to charge the
+// battery. When the battery is charged, there is surplus power to the grid.
+// Honors Dispatch Power but not Dispatch SOC
 #define DISPATCH_MODE_STATE_OF_CHARGE_CONTROL 2
 #define DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC "SOC control"
+// Force charge mode. The charge or discharge process will be
+// stopped when it reaches the SOC setting value.
+// Honors Dispatch Power and Dispatch SOC
 #define DISPATCH_MODE_LOAD_FOLLOWING 3
 #define DISPATCH_MODE_LOAD_FOLLOWING_DESC "Load Following"
+// The system will be self-consumption mode. Same as mode 5.
+// Honors Dispatch Power but not Dispatch SOC
 #define DISPATCH_MODE_MAXIMISE_OUTPUT 4
 #define DISPATCH_MODE_MAXIMISE_OUTPUT_DESC "Maximize Output"
+// If the current PV power can not meet the required inverter AC
+// output power, the battery will also discharge.
+// Doesn't honors Dispatch Power or Dispatch SOC
 #define DISPATCH_MODE_NORMAL_MODE 5
 #define DISPATCH_MODE_NORMAL_MODE_DESC "Normal mode"
+// The system will be self-consumption mode. Same as mode 3.
+// Honors Dispatch Power but not Dispatch SOC
 #define DISPATCH_MODE_OPTIMISE_CONSUMPTION 6
 #define DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC "Optimise consumption"
+// PV will charge batteries first. If the PV power cannot meet the maximum battery
+// charging power, it will also absorb power from the grid to charge the battery.
+// Doesn't honors Dispatch Power or Dispatch SOC
 #define DISPATCH_MODE_MAXIMISE_CONSUMPTION 7
 #define DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC "Maximise consumption"
+// It will only absorb power from the grid to charge the battery.
+// Doesn't honors Dispatch Power or Dispatch SOC
 #define DISPATCH_MODE_ECO_MODE 8
 #define DISPATCH_MODE_ECO_MODE_DESC "ECO Mode"
+// Self-consumption mode, but limits charging power.
+// Honors Dispatch Power (for charging) but not Dispatch SOC
 #define DISPATCH_MODE_FCAS_MODE 9
 #define DISPATCH_MODE_FCAS_MODE_DESC "FCAS-Mode"
+// Unknown
 #define DISPATCH_MODE_PV_POWER_SETTING 10
 #define DISPATCH_MODE_PV_POWER_SETTING_DESC "PV power setting"
+// Unknown
 #define DISPATCH_MODE_NO_BATTERY_CHARGE 19
 #define DISPATCH_MODE_NO_BATTERY_CHARGE_DESC "No Battery Charge"
+// Battery doesn't charge.  Excess PV power is pushed to the grid.
+// Honors Dispatch Power but not Dispatch SOC
+#define DISPATCH_MODE_BURNIN_MODE 20
+#define DISPATCH_MODE_BURNIN_MODE_DESC "Burnin Mode"
+// Unknown
 
 
 // Note8 - GRID REGULATION LOOKUP

@@ -4052,14 +4052,9 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV_DESC);
 				break;
 			}
-			case DISPATCH_MODE_ECO_MODE:
+			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
 			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_ECO_MODE_DESC);
-				break;
-			}
-			case DISPATCH_MODE_FCAS_MODE:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_FCAS_MODE_DESC);
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
 				break;
 			}
 			case DISPATCH_MODE_LOAD_FOLLOWING:
@@ -4072,11 +4067,6 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_MAXIMISE_OUTPUT_DESC);
 				break;
 			}
-			case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC);
-				break;
-			}
 			case DISPATCH_MODE_NORMAL_MODE:
 			{
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_NORMAL_MODE_DESC);
@@ -4087,19 +4077,34 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_OPTIMISE_CONSUMPTION_DESC);
 				break;
 			}
+			case DISPATCH_MODE_MAXIMISE_CONSUMPTION:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_MAXIMISE_CONSUMPTION_DESC);
+				break;
+			}
+			case DISPATCH_MODE_ECO_MODE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_ECO_MODE_DESC);
+				break;
+			}
+			case DISPATCH_MODE_FCAS_MODE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_FCAS_MODE_DESC);
+				break;
+			}
 			case DISPATCH_MODE_PV_POWER_SETTING:
 			{
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_PV_POWER_SETTING_DESC);
 				break;
 			}
-			case DISPATCH_MODE_STATE_OF_CHARGE_CONTROL:
-			{
-				strcpy(rs->dataValueFormatted, DISPATCH_MODE_STATE_OF_CHARGE_CONTROL_DESC);
-				break;
-			}
 			case DISPATCH_MODE_NO_BATTERY_CHARGE:
 			{
 				strcpy(rs->dataValueFormatted, DISPATCH_MODE_NO_BATTERY_CHARGE_DESC);
+				break;
+			}
+			case DISPATCH_MODE_BURNIN_MODE:
+			{
+				strcpy(rs->dataValueFormatted, DISPATCH_MODE_BURNIN_MODE_DESC);
 				break;
 			}
 			default:
