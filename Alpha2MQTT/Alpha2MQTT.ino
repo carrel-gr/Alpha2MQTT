@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.51";
+char _version[6] = "v2.52";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -2676,7 +2676,7 @@ setEssOpMode(void)
 #ifndef DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
 	modbusRequestAndResponse response;
-	uint16_t essDispatchMode, essBatterySocPct;
+	uint16_t essDispatchMode, essBatterySocPct, essDispatchSoc;
 	int32_t essDispatchActivePower;
 
 #ifdef DEBUG_OPS
@@ -2684,12 +2684,19 @@ setEssOpMode(void)
 #endif
 
 	essBatterySocPct = opData.essBatterySoc * BATTERY_SOC_MULTIPLIER;
-	if (essBatterySocPct == opData.a2mSocTarget) {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
-	} else if (essBatterySocPct > opData.a2mSocTarget) {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
-	} else {
+	if (opData.a2mSocTarget == 100) {
+		essDispatchSoc = 252;  // (100/DISPATCH_SOC_MULTIPLIER) = 250 but we want it a smidge higher
+		// and leave power charging.  Let Alpha stop it when ready.
 		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
+	} else {
+		essDispatchSoc = opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER;
+		if (essBatterySocPct == opData.a2mSocTarget) {
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
+		} else if (essBatterySocPct > opData.a2mSocTarget) {
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
+		} else {
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
+		}
 	}
 
 	switch (opData.a2mOpMode) {
@@ -2733,7 +2740,7 @@ setEssOpMode(void)
 		return; // Shouldn't happen!  opMode is corrupt.
 	}
 
-	result = _registerHandler->writeDispatchRegisters(essDispatchActivePower, essDispatchMode, opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER, &response);
+	result = _registerHandler->writeDispatchRegisters(essDispatchActivePower, essDispatchMode, essDispatchSoc, &response);
 	if (result != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
 #ifdef DEBUG_RS485
 		rs485Errors++;
@@ -2746,7 +2753,7 @@ bool
 checkEssOpMode(void)
 {
 #ifndef DEBUG_NO_RS485
-	uint16_t essDispatchMode, essBatterySocPct;
+	uint16_t essDispatchMode, essBatterySocPct, essDispatchSoc;
 	int32_t essDispatchActivePower;
 
 	if (!opData.a2mReadyToUseOpMode || !opData.a2mReadyToUseSocTarget || !opData.a2mReadyToUsePwrCharge || !opData.a2mReadyToUsePwrDischarge || !opData.a2mReadyToUsePwrPush) {
@@ -2758,12 +2765,19 @@ checkEssOpMode(void)
 	}
 
 	essBatterySocPct = opData.essBatterySoc * BATTERY_SOC_MULTIPLIER;
-	if (essBatterySocPct == opData.a2mSocTarget) {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
-	} else if (essBatterySocPct > opData.a2mSocTarget) {
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
-	} else {
+	if (opData.a2mSocTarget == 100) {
+		essDispatchSoc = 252;  // (100/DISPATCH_SOC_MULTIPLIER) = 250 but we want it a smidge higher
+		// and leave power charging.  Let Alpha stop it when ready.
 		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
+	} else {
+		essDispatchSoc = opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER;
+		if (essBatterySocPct == opData.a2mSocTarget) {
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
+		} else if (essBatterySocPct > opData.a2mSocTarget) {
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
+		} else {
+			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
+		}
 	}
 
 	switch (opData.a2mOpMode) {
@@ -2820,7 +2834,7 @@ checkEssOpMode(void)
 		return false;
 	}
 
-	if (opData.essDispatchSoc != (uint16_t)(opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER)) {
+	if (opData.essDispatchSoc != essDispatchSoc) {
 		return false;
 	}
 
