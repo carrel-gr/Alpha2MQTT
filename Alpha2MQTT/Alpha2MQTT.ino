@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.52";
+char _version[6] = "v2.53";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -426,10 +426,8 @@ loop()
 		// Read and transmit all entity data to MQTT
 		sendData();
 	
-		// Check the Operational mode.
-		if (!checkEssOpMode()) {
-			setEssOpMode();
-		}
+		// Check and set the Dispatch Mode based on Operational Mode.
+		checkAndSetDispatchMode();
 	}
 
 	// Force Restart?
@@ -2671,17 +2669,19 @@ lookupOpMode(char *opModeDesc)
 }
 
 void
-setEssOpMode(void)
+checkAndSetDispatchMode(void)
 {
 #ifndef DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
 	modbusRequestAndResponse response;
 	uint16_t essDispatchMode, essBatterySocPct, essDispatchSoc;
 	int32_t essDispatchActivePower;
+	bool checkActivePower = true;
 
-#ifdef DEBUG_OPS
-	opCounter++;
-#endif
+	if (!opData.a2mReadyToUseOpMode || !opData.a2mReadyToUseSocTarget || !opData.a2mReadyToUsePwrCharge ||
+	    !opData.a2mReadyToUsePwrDischarge || !opData.a2mReadyToUsePwrPush) {
+		return;  // Don't set anything if opData isn't ready.
+	}
 
 	essBatterySocPct = opData.essBatterySoc * BATTERY_SOC_MULTIPLIER;
 	if (opData.a2mSocTarget == 100) {
@@ -2719,6 +2719,11 @@ setEssOpMode(void)
 			}
 			essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;	// Honors Power and SOC
 			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + newBatteryPower;
+			// Smoothing - If power doesn't change much, pretend it isn't changing.
+			if ((essDispatchActivePower < (opData.essDispatchActivePower + PUSH_FUDGE_FACTOR)) &&
+			    (essDispatchActivePower > (opData.essDispatchActivePower - PUSH_FUDGE_FACTOR))) {
+				checkActivePower = false;
+			}
 		} else {
 			essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honor Power or SOC
 			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
@@ -2740,108 +2745,21 @@ setEssOpMode(void)
 		return; // Shouldn't happen!  opMode is corrupt.
 	}
 
-	result = _registerHandler->writeDispatchRegisters(essDispatchActivePower, essDispatchMode, essDispatchSoc, &response);
-	if (result != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
+	if ((opData.essDispatchStart != DISPATCH_START_START) ||
+	    (opData.essDispatchMode != essDispatchMode) ||
+	    (checkActivePower && (opData.essDispatchActivePower != essDispatchActivePower)) ||
+	    (opData.essDispatchSoc != essDispatchSoc)) {
+#ifdef DEBUG_OPS
+		opCounter++;
+#endif
+		result = _registerHandler->writeDispatchRegisters(essDispatchActivePower, essDispatchMode, essDispatchSoc, &response);
+		if (result != modbusRequestAndResponseStatusValues::writeDataRegisterSuccess) {
 #ifdef DEBUG_RS485
-		rs485Errors++;
+			rs485Errors++;
 #endif // DEBUG_RS485
-	}
-#endif // ! DEBUG_NO_RS485
-}
-
-bool
-checkEssOpMode(void)
-{
-#ifndef DEBUG_NO_RS485
-	uint16_t essDispatchMode, essBatterySocPct, essDispatchSoc;
-	int32_t essDispatchActivePower;
-
-	if (!opData.a2mReadyToUseOpMode || !opData.a2mReadyToUseSocTarget || !opData.a2mReadyToUsePwrCharge || !opData.a2mReadyToUsePwrDischarge || !opData.a2mReadyToUsePwrPush) {
-		return true;  // Don't set anything if opData isn't ready.
-	}
-
-	if (opData.essDispatchStart != DISPATCH_START_START) {
-		return false;
-	}
-
-	essBatterySocPct = opData.essBatterySoc * BATTERY_SOC_MULTIPLIER;
-	if (opData.a2mSocTarget == 100) {
-		essDispatchSoc = 252;  // (100/DISPATCH_SOC_MULTIPLIER) = 250 but we want it a smidge higher
-		// and leave power charging.  Let Alpha stop it when ready.
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
-	} else {
-		essDispatchSoc = opData.a2mSocTarget / DISPATCH_SOC_MULTIPLIER;
-		if (essBatterySocPct == opData.a2mSocTarget) {
-			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
-		} else if (essBatterySocPct > opData.a2mSocTarget) {
-			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + opData.a2mPwrDischarge;
-		} else {
-			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
 		}
 	}
-
-	switch (opData.a2mOpMode) {
-	case opMode::opModePvCharge:
-		essDispatchMode = DISPATCH_MODE_BATTERY_ONLY_CHARGED_VIA_PV;
-		// use essDispatchActivePower from above
-		break;
-	case opMode::opModeTarget:
-		essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;
-		// use essDispatchActivePower from above
-		break;
-	case opMode::opModePush:
-		if (essBatterySocPct > opData.a2mSocTarget) {
-			int32_t newBatteryPower = opData.essBatteryPower + opData.essGridPower + opData.a2mPwrPush;
-			if (newBatteryPower < opData.a2mPwrPush) {
-				newBatteryPower = opData.a2mPwrPush;
-			}
-			if (newBatteryPower > INVERTER_POWER_MAX) {
-				newBatteryPower = INVERTER_POWER_MAX; // Should never happen, but just to be safe...
-			}
-			essDispatchMode = DISPATCH_MODE_STATE_OF_CHARGE_CONTROL;	// Honors Power and SOC
-			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET + newBatteryPower;
-			// Smoothing - If power doesn't change much, pretend it isn't changing.
-			if ((essDispatchActivePower < (opData.essDispatchActivePower + PUSH_FUDGE_FACTOR)) &&
-			    (essDispatchActivePower > (opData.essDispatchActivePower - PUSH_FUDGE_FACTOR))) {
-				essDispatchActivePower = opData.essDispatchActivePower;
-			}
-		} else {
-			essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;		// Doesn't honor Power or SOC
-			essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
-		}
-		break;
-	case opMode::opModeLoadFollow:
-		essDispatchMode = DISPATCH_MODE_LOAD_FOLLOWING;
-		// use essDispatchActivePower from above
-		break;
-	case opMode::opModeMaxCharge:
-		essDispatchMode = DISPATCH_MODE_OPTIMISE_CONSUMPTION;
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET - opData.a2mPwrCharge;
-		break;
-	case opMode::opModeNoCharge:
-		essDispatchMode = DISPATCH_MODE_NO_BATTERY_CHARGE;
-		essDispatchActivePower = DISPATCH_ACTIVE_POWER_OFFSET;
-		break;
-	default:
-		return false;  // Shouldn't happen!  opMode is corrupt.
-	}
-
-	if (opData.essDispatchMode != essDispatchMode) {
-		return false;
-	}
-
-	if (opData.essDispatchActivePower != essDispatchActivePower) {
-		return false;
-	}
-
-	if (opData.essDispatchSoc != essDispatchSoc) {
-		return false;
-	}
-
-	// No need to check REG_DISPATCH_RW_DISPATCH_TIME_1
-
 #endif // ! DEBUG_NO_RS485
-	return true;
 }
 
 void
