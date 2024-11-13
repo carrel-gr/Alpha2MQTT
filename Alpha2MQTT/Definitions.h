@@ -38,23 +38,15 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // Compiling for ESP8266 or ESP32?
 #define MP_ESP32
 //#define MP_ESP8266
-#if (!defined MP_ESP8266) && (!defined MP_ESP32)
-#error You must specify the microprocessor in use
-#endif
-#if (defined MP_ESP8266) && (defined MP_ESP32)
-#error You must only select one microprocessor from the list
-#endif
 
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
 // Don't set this if using the  ESP8266 64x48 display.
 #define LARGE_DISPLAY
-#ifdef LARGE_DISPLAY
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-#else // LARGE_DISPLAY
-#define SCREEN_WIDTH 64
-#define SCREEN_HEIGHT 48
-#endif // LARGE_DISPLAY
+
+// If your OLED does have an RST pin, set this.
+// An OLED Shield compatible with an ESP8266 does have a RESET pin and it is linked to GPIO0 if using an ESP8266.
+// If you are using the same OLED Shield with an ESP32, by default for this project it is linked to GIO13.
+//#define OLED_HAS_RST_PIN
 
 // Set this to true to set the "retain" flag when publishing to MQTT
 #define MQTT_RETAIN true
@@ -75,15 +67,15 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define MIN_MQTT_PAYLOAD_SIZE 512
 #define MQTT_HEADER_SIZE 512
 
-#define DEBUG
+//#define DEBUG_OVER_SERIAL	// Enable debugging msgs over serial port
+//#define DEBUG_LEVEL2		// For serial flooding action
+//#define DEBUG_OUTPUT_TX_RX	// write RS485 frames to serial debugging port
 //#define DEBUG_FREEMEM	// Enable extra debug on display and via MQTT
 //#define DEBUG_WIFI	// Enable extra debug on display and via MQTT
 //#define DEBUG_CALLBACKS	// Enable extra debug on display and via MQTT
-#define DEBUG_OPS     // Enable extra debug for opModes
+//#define DEBUG_OPS     // Enable extra debug for opModes
 //#define DEBUG_RS485	// Enable extra debug on display and via MQTT
 //#define DEBUG_NO_RS485	// Fake-out all RS485 comms
-//#define DEBUG_LEVEL2 // For serial flooding action
-//#define DEBUG_OUTPUT_TX_RX
 
 // The SOC Target value is a percent value.  Define MIN/MAX range for what HA can use.
 #define SOC_TARGET_MAX 100
@@ -101,6 +93,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define INVERTER_POWER_MAX 9600
 
 // If values for some registers such as voltage or temperatures appear to be out by a decimal place or two, try the following:
+
 // Documentation declares 1V - However Presume 0.1 as result appears to reflect this.  I.e. my voltage reading was 2421, * 0.1 for 242.1
 // However EMS3.5/EMS3.6 seems to follow the spec.
 #ifdef EMS_35_36
@@ -140,17 +133,11 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // has time to 'breathe'
 // 80ms is a default starting point which is 1/12 of a second.  If it corrects the issue try reducing the delay to 60, 40, etc until you find a happy place.
 // If you want to make use of it, uncomment the next line and change 80 as necessary
-//#define REQUIRE_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL
-#define REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL 80
+//#define REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL 80
 
 // The device name is used as the MQTT base topic and presence on the network.
 // You can have more than one Alpha2MQTT on your network without changing this.
 #define DEVICE_NAME "Alpha2MQTT"
-
-// If your OLED does have an RST pin, set this.
-// An OLED Shield compatible with an ESP8266 does have a RESET pin and it is linked to GPIO0 if using an ESP8266.
-// If you are using the same OLED Shield with an ESP32, by default for this project it is linked to GIO13.
-//#define OLED_HAS_RST_PIN
 
 // Default address of inverter is 0x55 as per Alpha Modbus documentation.  If you have altered it, reflect that change here.
 #define ALPHA_SLAVE_ID 0x55
@@ -160,13 +147,27 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 // A user informed me that their router leverages leases on network connections which can't be disabled.
 // I.e. when lease expires, WiFi doesn't drop but data stops.
-// If FORCE_RESTART is defined, then the system will auto-reboot every X many hours as configured in FORCE_RESTART_HOURS
-//#define FORCE_RESTART
-#define FORCE_RESTART_HOURS 49
+// If FORCE_RESTART_HOURS is defined, then the system will auto-reboot every X many hours as configured in FORCE_RESTART_HOURS
+//#define FORCE_RESTART_HOURS 49
 
 /*************************************************/
 /* Shouldn't need to change anything below this. */
 /*************************************************/
+
+#if (!defined MP_ESP8266) && (!defined MP_ESP32)
+#error You must specify the microprocessor in use
+#endif
+#if (defined MP_ESP8266) && (defined MP_ESP32)
+#error You must only select one microprocessor from the list
+#endif
+
+#ifdef LARGE_DISPLAY
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#else // LARGE_DISPLAY
+#define SCREEN_WIDTH 64
+#define SCREEN_HEIGHT 48
+#endif // LARGE_DISPLAY
 
 // Handled Registers as per 1.23 documentation
 // Network meter - configuration

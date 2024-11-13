@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.54";
+char _version[6] = "v2.55";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -74,8 +74,10 @@ char _oledLine4[OLED_CHARACTER_WIDTH] = "";
 RS485Handler* _modBus;
 RegisterHandler* _registerHandler;
 
+#if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 // Fixed char array for messages to the serial port
 char _debugOutput[128];
+#endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 
 int32_t regNumberToRead = -1;
 #ifdef DEBUG_WIFI
@@ -215,10 +217,12 @@ void setup()
 	char baudRateString[10] = "";
 	int baudRateIterator = -1;
 
+#if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 	// Set up serial for debugging using an appropriate baud rate
 	// This is for communication with the development environment, NOT the Alpha system
 	// See Definitions.h for this.
 	Serial.begin(9600);
+#endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 
 	// Configure LED for output
 	pinMode(LED_BUILTIN, OUTPUT);
@@ -234,7 +238,7 @@ void setup()
 	// Bit of a delay to give things time to kick in
 	delay(500);
 
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	sprintf(_debugOutput, "Starting.");
 	Serial.println(_debugOutput);
 #endif
@@ -244,12 +248,12 @@ void setup()
 
 	// Configure MQTT to the address and port specified above
 	_mqtt.setServer(MQTT_SERVER, MQTT_PORT);
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	sprintf(_debugOutput, "About to request buffer");
 	Serial.println(_debugOutput);
 #endif
 	for (int _bufferSize = (MAX_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE); _bufferSize >= MIN_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE; _bufferSize = _bufferSize - 1024) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		sprintf(_debugOutput, "Requesting a buffer of : %d bytes", _bufferSize);
 		Serial.println(_debugOutput);
 #endif
@@ -257,7 +261,7 @@ void setup()
 		if (_mqtt.setBufferSize(_bufferSize)) {
 			
 			_maxPayloadSize = _bufferSize - MQTT_HEADER_SIZE;
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			sprintf(_debugOutput, "_bufferSize: %d,\r\n\r\n_maxPayload (Including null terminator): %d", _bufferSize, _maxPayloadSize);
 			Serial.println(_debugOutput);
 #endif
@@ -268,13 +272,13 @@ void setup()
 				emptyPayload();
 				break;
 			} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 				sprintf(_debugOutput, "Coudln't allocate payload of %d bytes", _maxPayloadSize);
 				Serial.println(_debugOutput);
 #endif
 			}
 		} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			sprintf(_debugOutput, "Coudln't allocate buffer of %d bytes", _bufferSize);
 			Serial.println(_debugOutput);
 #endif
@@ -286,7 +290,9 @@ void setup()
 
 	// Set up the serial for communicating with the MAX
 	_modBus = new RS485Handler;
+#if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 	_modBus->setDebugOutput(_debugOutput);
+#endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 
 	// Set up the helper class for reading with reading registers
 	_registerHandler = new RegisterHandler(_modBus);
@@ -305,7 +311,7 @@ void setup()
 		sprintf(baudRateString, "%lu", knownBaudRates[baudRateIterator]);
 
 		updateOLED(false, "Test Baud", baudRateString, "");
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		sprintf(_debugOutput, "About To Try: %lu", knownBaudRates[baudRateIterator]);
 		Serial.println(_debugOutput);
 #endif
@@ -319,7 +325,7 @@ void setup()
 		result = _registerHandler->readHandledRegister(REG_SAFETY_TEST_RW_GRID_REGULATION, &response);
 #endif // DEBUG_NO_RS485
 		if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			sprintf(_debugOutput, "Baud Rate Checker Problem: %s", response.statusMqttMessage);
 			Serial.println(_debugOutput);
 #endif
@@ -375,7 +381,7 @@ void setup()
 void
 loop()
 {
-#ifdef FORCE_RESTART
+#ifdef FORCE_RESTART_HOURS
 	static unsigned long autoReboot = 0;
 #endif
 
@@ -431,7 +437,7 @@ loop()
 	}
 
 	// Force Restart?
-#ifdef FORCE_RESTART
+#ifdef FORCE_RESTART_HOURS
 	if (checkTimer(&autoReboot, FORCE_RESTART_HOURS * 60 * 60 * 1000)) {
 		ESP.restart();
 	}
@@ -466,7 +472,7 @@ setupWifi(bool initialConnect)
 	char line4[OLED_CHARACTER_WIDTH];
 
 	// We start by connecting to a WiFi network
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	if (initialConnect) {
 		sprintf(_debugOutput, "Connecting to %s", WIFI_SSID);
 	} else {
@@ -553,7 +559,7 @@ setupWifi(bool initialConnect)
 	}
 
 	// Output some debug information
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	Serial.print("WiFi connected, IP is ");
 	Serial.println(WiFi.localIP());
 	byte *bssid = WiFi.BSSID();
@@ -786,7 +792,7 @@ getSerialNumber()
 #endif //LARGE_DISPLAY
 	updateOLED(false, "Hello", oledLine3, oledLine4);
 
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	sprintf(_debugOutput, "Alpha Serial Number: %s", deviceSerialNumber);
 	Serial.println(_debugOutput);
 #endif
@@ -1088,7 +1094,7 @@ mqttReconnect(void)
 			setupWifi(false);
 		}
 
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		Serial.print("Attempting MQTT connection...");
 #endif
 
@@ -1100,14 +1106,14 @@ mqttReconnect(void)
 		// Attempt to connect
 		if (_mqtt.connect(haUniqueId, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true, "offline")) {
 			int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			Serial.println("Connected MQTT");
 #endif
 
 			// Special case for Home Assistant
 			sprintf(subscriptionDef, "%s", MQTT_SUB_HOMEASSISTANT);
 			subscribed = _mqtt.subscribe(subscriptionDef, MQTT_SUBSCRIBE_QOS);
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			snprintf(_debugOutput, sizeof(_debugOutput), "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
 			Serial.println(_debugOutput);
 #endif
@@ -1116,7 +1122,7 @@ mqttReconnect(void)
 				if (_mqttAllEntities[i].subscribe) {
 					sprintf(subscriptionDef, DEVICE_NAME "/%s/%s/command", haUniqueId, _mqttAllEntities[i].mqttName);
 					subscribed = subscribed && _mqtt.subscribe(subscriptionDef, MQTT_SUBSCRIBE_QOS);
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 					snprintf(_debugOutput, sizeof(_debugOutput), "Subscribed to \"%s\" : %d", subscriptionDef, subscribed);
 					Serial.println(_debugOutput);
 #endif
@@ -1129,7 +1135,7 @@ mqttReconnect(void)
 			}
 		}
 
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		sprintf(_debugOutput, "MQTT Failed: RC is %d\r\nTrying again in five seconds...", _mqtt.state());
 		Serial.println(_debugOutput);
 #endif
@@ -1791,7 +1797,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_RS485
 		rs485InvalidValues++;
 #endif // DEBUG_RS485
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		snprintf(_debugOutput, sizeof(_debugOutput), "readEntity: invalid val for: %s: ", singleEntity->mqttName);
 		Serial.print(_debugOutput);
 		Serial.println(rs->dataValueFormatted);
@@ -1800,7 +1806,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #ifdef DEBUG_RS485
 		rs485Errors++;
 #endif // DEBUG_RS485
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		snprintf(_debugOutput, sizeof(_debugOutput), "Failed to read register: %s, Result = %d", singleEntity->mqttName, result);
 		Serial.println(_debugOutput);
 #endif
@@ -2458,7 +2464,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 	char mqttIncomingPayload[64] = ""; // Should be enough to cover command requests
 	mqttState *mqttEntity = NULL;
 
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	sprintf(_debugOutput, "Topic: %s", topic);
 	Serial.println(_debugOutput);
 #endif
@@ -2468,7 +2474,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 #endif // DEBUG_CALLBACKS
 
 	if ((length == 0) || (length >= sizeof(mqttIncomingPayload))) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		sprintf(_debugOutput, "mqttCallback: bad length: %d", length);
 		Serial.println(_debugOutput);
 #endif
@@ -2480,7 +2486,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 		// Get the payload (ensure NULL termination)
 		strlcpy(mqttIncomingPayload, (char *)message, length + 1);
 	}
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 	sprintf(_debugOutput, "Payload: %d", length);
 	Serial.println(_debugOutput);
 	Serial.println(mqttIncomingPayload);
@@ -2492,7 +2498,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 			resendHaData = true;
 			resendAllData = true;
 		} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			Serial.println("Unknown homeassistant/status: ");
 			Serial.println(mqttIncomingPayload);
 #endif
@@ -2544,7 +2550,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 			singleString = mqttIncomingPayload;
 			break;
 		default:
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			sprintf(_debugOutput, "Trying to update an unhandled entity! %d", mqttEntity->entityId);
 			Serial.println(_debugOutput);
 #endif
@@ -2555,7 +2561,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 		}
 
 		if (valueProcessingError) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			snprintf(_debugOutput, sizeof(_debugOutput), "Callback for %s with bad value: ", mqttEntity->mqttName);
 			Serial.print(_debugOutput);
 			Serial.println(mqttIncomingPayload);
@@ -2568,7 +2574,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 			switch (mqttEntity->entityId) {
 			case mqttEntityId::entitySocTarget:
 				if ((singleInt32 < SOC_TARGET_MIN) || (singleInt32 > SOC_TARGET_MAX)) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 					sprintf(_debugOutput, "HA sent invalid SocTarget! %ld", singleInt32);
 					Serial.println(_debugOutput);
 #endif
@@ -2582,7 +2588,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				break;
 			case mqttEntityId::entityChargePwr:
 				if ((singleInt32 < 0) || (singleInt32 > INVERTER_POWER_MAX)) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 					sprintf(_debugOutput, "HA sent invalid Charge Power! %ld", singleInt32);
 					Serial.println(_debugOutput);
 #endif
@@ -2596,7 +2602,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				break;
 			case mqttEntityId::entityDischargePwr:
 				if ((singleInt32 < 0) || (singleInt32 > INVERTER_POWER_MAX)) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 					sprintf(_debugOutput, "HA sent invalid Discharge Power! %ld", singleInt32);
 					Serial.println(_debugOutput);
 #endif
@@ -2610,7 +2616,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				break;
 			case mqttEntityId::entityPushPwr:
 				if ((singleInt32 < 0) || (singleInt32 > INVERTER_POWER_MAX)) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 					sprintf(_debugOutput, "HA sent invalid Push Power! %ld", singleInt32);
 					Serial.println(_debugOutput);
 #endif
@@ -2634,7 +2640,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 						opData.a2mOpMode = tempOpMode;
 						opData.a2mReadyToUseOpMode = true;
 					} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 						snprintf(_debugOutput, sizeof(_debugOutput), "Callback: Bad opMode: %s", singleString);
 						Serial.println(_debugOutput);
 #endif
@@ -2645,7 +2651,7 @@ void mqttCallback(char* topic, byte* message, unsigned int length)
 				}
 				break;
 			default:
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 				sprintf(_debugOutput, "Trying to write an unhandled entity! %d", mqttEntity->entityId);
 				Serial.println(_debugOutput);
 #endif
@@ -2670,13 +2676,13 @@ void sendMqtt(const char *topic, bool retain)
 {
 	// Attempt a send
 	if (!_mqtt.publish(topic, _mqttPayload, retain)) {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		snprintf(_debugOutput, sizeof(_debugOutput), "MQTT publish failed to %s", topic);
 		Serial.println(_debugOutput);
 		Serial.println(_mqttPayload);
 #endif
 	} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		//sprintf(_debugOutput, "MQTT publish success");
 		//Serial.println(_debugOutput);
 #endif
@@ -2873,7 +2879,7 @@ getA2mOpDataFromEss(void)
 				opData.a2mOpMode = opMode::opModeNoCharge;
 				break;
 			default:
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 				snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpDataFromEss: Unhandled Dispatch Mode: %u/", response.unsignedShortValue);
 				Serial.print(_debugOutput);
 				Serial.println(response.dataValueFormatted);
@@ -2886,11 +2892,11 @@ getA2mOpDataFromEss(void)
 #ifdef DEBUG_RS485
 			rs485Errors++;
 #endif // DEBUG_RS485
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpDataFromEss: read failed");
 			Serial.println(_debugOutput);
-		}
 #endif
+		}
 	}
 
 	found = false;
@@ -2900,10 +2906,10 @@ getA2mOpDataFromEss(void)
 			opData.a2mSocTarget = response.unsignedShortValue * DISPATCH_SOC_MULTIPLIER;
 			found = true;
 		} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpDataFromEss: read failed");
 			Serial.println(_debugOutput);
-#endif // DEBUG
+#endif // DEBUG_OVER_SERIAL
 #ifdef DEBUG_RS485
 			rs485Errors++;
 #endif // DEBUG_RS485
@@ -2926,10 +2932,10 @@ getA2mOpDataFromEss(void)
 			}
 			found = true;
 		} else {
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 			snprintf(_debugOutput, sizeof(_debugOutput), "getA2mOpDataFromEss: read failed");
 			Serial.println(_debugOutput);
-#endif // DEBUG
+#endif // DEBUG_OVER_SERIAL
 #ifdef DEBUG_RS485
 			rs485Errors++;
 #endif // DEBUG_RS485

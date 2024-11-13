@@ -60,6 +60,7 @@ void RS485Handler::setBaudRate(unsigned long baudRate)
 }
 
 
+#if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 /*
 setDebugOutput()
 
@@ -69,6 +70,7 @@ void RS485Handler::setDebugOutput(char* _db)
 {
 	_debugOutput = _db;
 }
+#endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 
 
 
@@ -108,7 +110,7 @@ modbusRequestAndResponseStatusValues RS485Handler::sendModbus(uint8_t frame[], b
 
 	while (result == modbusRequestAndResponseStatusValues::preProcessing) {
 		// After some liaison with a user of Alpha2MQTT on a 115200 baud rate, this fixed inconsistent retrieval
-#ifdef REQUIRE_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL
+#ifdef REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL
 		delay(REQUIRED_DELAY_DUE_TO_INCONSISTENT_RETRIEVAL);
 #endif
 
@@ -165,6 +167,7 @@ modbusRequestAndResponseStatusValues RS485Handler::sendModbus(uint8_t frame[], b
 }
 
 
+#ifdef DEBUG_OUTPUT_TX_RX
 /*
 outputFrameToSerial
  
@@ -206,7 +209,7 @@ void RS485Handler::outputFrameToSerial(bool transmit, uint8_t frame[], byte actu
 	Serial.println(_debugOutput);
 
 }
-
+#endif // DEBUG_OUTPUT_TX_RX
 
 
 
@@ -378,7 +381,7 @@ modbusRequestAndResponseStatusValues RS485Handler::listenResponse(modbusRequestA
 
 	if (timedOut)
 	{
-#ifdef DEBUG
+#ifdef DEBUG_OVER_SERIAL
 		sprintf(_debugOutput, "Timed Out (inByteNumZeroIndexed): %d", inByteNumZeroIndexed);
 		Serial.println(_debugOutput);
 		sprintf(_debugOutput, "Timed Out (gotSlaveID): %d", gotSlaveID);

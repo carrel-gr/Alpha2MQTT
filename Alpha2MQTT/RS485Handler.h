@@ -62,7 +62,9 @@ class RS485Handler
 		void checkRS485IsQuiet();
 		modbusRequestAndResponseStatusValues listenResponse(modbusRequestAndResponse* resp);
 		bool checkForData();
+#ifdef DEBUG_OUTPUT_TX_RX
 		void outputFrameToSerial(bool transmit, uint8_t frame[], byte actualFrameSize);
+#endif // DEBUG_OUTPUT_TX_RX
 		uint16_t baudRate;
 
 	protected:
@@ -74,7 +76,9 @@ class RS485Handler
 		modbusRequestAndResponseStatusValues sendModbus(uint8_t frame[], byte actualFrameSize, modbusRequestAndResponse* resp);
 		bool checkCRC(uint8_t frame[], byte actualFrameSize);
 		void calcCRC(uint8_t frame[], byte actualFrameSize);
+#if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 		void setDebugOutput(char* _db);
+#endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 		void setBaudRate(unsigned long baudRate);
 };
 
