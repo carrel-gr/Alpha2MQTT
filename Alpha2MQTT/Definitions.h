@@ -1271,8 +1271,8 @@ enum mqttEntityId {
 #endif // DEBUG_WIFI
 #ifdef DEBUG_RS485
 	entityRs485Errors,
-	entityRs485InvalidVals,
 #endif // DEBUG_RS485
+	entityRs485Avail,
 	entityA2MUptime,
 	entityA2MVersion,
 	entityInverterSn,
@@ -1312,7 +1312,8 @@ enum mqttUpdateFreq {
 	updateFreqOneMin,
 	updateFreqFiveMin,
 	updateFreqOneHour,
-	updateFreqOneDay
+	updateFreqOneDay,
+	updateFreqNever		// included in something else (i.e. statusTopic items)
 };
 
 enum homeAssistantClass {
@@ -1349,7 +1350,6 @@ enum opMode {
 struct mqttState
 {
 	mqttEntityId entityId;
-//	uint16_t registerAddress;
 	char mqttName[MAX_MQTT_NAME_LENGTH];
 	mqttUpdateFreq updateFreq;
 	bool subscribe;

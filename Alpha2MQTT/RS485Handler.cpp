@@ -33,6 +33,7 @@ RS485Handler::RS485Handler()
 	_RS485Serial->begin(DEFAULT_BAUD_RATE, SERIAL_8N1, 16, 17);
 #endif
 	
+	_rs485IsOnline = false;
 }
 
 /*
@@ -59,6 +60,13 @@ void RS485Handler::setBaudRate(unsigned long baudRate)
 	_RS485Serial->begin(baudRate);
 }
 
+/*
+ * isRs485Online()
+ */
+bool RS485Handler::isRs485Online()
+{
+	return _rs485IsOnline;
+}
 
 #if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 /*
@@ -162,6 +170,14 @@ modbusRequestAndResponseStatusValues RS485Handler::sendModbus(uint8_t frame[], b
 			delay(250);
 			result = modbusRequestAndResponseStatusValues::preProcessing;
 		}
+	}
+
+	if (result == modbusRequestAndResponseStatusValues::writeDataRegisterSuccess ||
+	    result == modbusRequestAndResponseStatusValues::writeSingleRegisterSuccess ||
+	    result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+		_rs485IsOnline = true;
+	} else {
+		_rs485IsOnline = false;
 	}
 	return result;
 }

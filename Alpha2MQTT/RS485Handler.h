@@ -66,6 +66,7 @@ class RS485Handler
 		void outputFrameToSerial(bool transmit, uint8_t frame[], byte actualFrameSize);
 #endif // DEBUG_OUTPUT_TX_RX
 		uint16_t baudRate;
+		bool _rs485IsOnline;
 
 	protected:
 
@@ -80,6 +81,7 @@ class RS485Handler
 		void setDebugOutput(char* _db);
 #endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 		void setBaudRate(unsigned long baudRate);
+		bool isRs485Online();
 };
 
 
