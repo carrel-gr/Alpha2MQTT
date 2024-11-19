@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.57";
+char _version[6] = "v2.58";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -114,9 +114,7 @@ struct {
 	uint16_t essDispatchSoc = 0;      // Stored as ESS register value. (percent / 0.4)
 	uint16_t essBatterySoc = 0;       // Stored as ESS register value. (percent / 0.1)
 	int16_t  essBatteryPower = 0;	// positive->discharge : negative->charge
-//	int16_t  essBatteryPowerAvg = 0;
 	int32_t  essGridPower = 0;	// positive->fromGrid : negative->toGrid
-//	int32_t  essGridPowerAvg = 0;
 	int32_t  essPvPower = 0;	// Positive
 	bool     essGridConnected = false;
 	bool     essRs485Connected = false;
@@ -265,21 +263,19 @@ void setup()
 			sprintf(_debugOutput, "_bufferSize: %d,\r\n\r\n_maxPayload (Including null terminator): %d", _bufferSize, _maxPayloadSize);
 			Serial.println(_debugOutput);
 #endif
-			
-			// Example, 2048, if declared as 2048 is positions 0 to 2047, and position 2047 needs to be zero.  2047 usable chars in payload.
 			_mqttPayload = new char[_maxPayloadSize];
 			if (_mqttPayload != NULL) {
 				emptyPayload();
 				break;
 			} else {
 #ifdef DEBUG_OVER_SERIAL
-				sprintf(_debugOutput, "Coudln't allocate payload of %d bytes", _maxPayloadSize);
+				sprintf(_debugOutput, "Couldn't allocate payload of %d bytes", _maxPayloadSize);
 				Serial.println(_debugOutput);
 #endif
 			}
 		} else {
 #ifdef DEBUG_OVER_SERIAL
-			sprintf(_debugOutput, "Coudln't allocate buffer of %d bytes", _bufferSize);
+			sprintf(_debugOutput, "Couldn't allocate buffer of %d bytes", _bufferSize);
 			Serial.println(_debugOutput);
 #endif
 		}
@@ -460,10 +456,10 @@ getUptimeSeconds(void)
 }
 
 /*
-  setupWifi
-
-  Connect to WiFi
-*/
+ * setupWifi
+ *
+ * Connect to WiFi
+ */
 void
 setupWifi(bool initialConnect)
 {
@@ -576,12 +572,12 @@ setupWifi(bool initialConnect)
 
 
 /*
-  checkTimer
-
-  Check to see if the elapsed interval has passed since the passed in millis() value. If it has, return true and update the lastRun.
-  Note that millis() overflows after 50 days, so we need to deal with that too... in our case we just zero the last run, which means the timer
-  could be shorter but it's not critical... not worth the extra effort of doing it properly for once in 50 days.
-*/
+ * checkTimer
+ *
+ * Check to see if the elapsed interval has passed since the passed in millis() value. If it has, return true and update the lastRun.
+ * Note that millis() overflows after 50 days, so we need to deal with that too... in our case we just zero the last run, which means the timer
+ * could be shorter but it's not critical... not worth the extra effort of doing it properly for once in 50 days.
+ */
 bool
 checkTimer(unsigned long *lastRun, unsigned long interval)
 {
@@ -604,11 +600,11 @@ checkTimer(unsigned long *lastRun, unsigned long interval)
 #define CURSOR_LINE_4 ((SCREEN_HEIGHT / 4) * 3)
 
 /*
-  updateOLED
-
-  Update the OLED. Use "NULL" for no change to a line or "" for an empty line.
-  Three parameters representing each of the three lines available for status indication - Top line functionality fixed
-*/
+ * updateOLED
+ *
+ * Update the OLED. Use "NULL" for no change to a line or "" for an empty line.
+ * Three parameters representing each of the three lines available for status indication - Top line functionality fixed
+ */
 void
 updateOLED(bool justStatus, const char* line2, const char* line3, const char* line4)
 {
@@ -724,7 +720,7 @@ printWifiBars(int rssi)
 
 
 /*
- *getSerialNumber
+ * getSerialNumber
  *
  * Display on load to demonstrate connectivty and send the prefix into RegisterHandler as
  * some system fault descriptions depend on knowing whether an AL based or AE based inverter.
@@ -1078,7 +1074,7 @@ void updateRunstate()
 /*
  * mqttReconnect
  *
- *This function reconnects the ESP8266 to the MQTT broker
+ * This function reconnects the ESP8266 to the MQTT broker
  */
 void
 mqttReconnect(void)
@@ -1719,10 +1715,8 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #endif // DEBUG_WIFI
 	}
 
-	if (result == modbusRequestAndResponseStatusValues::readDataInvalidValue) {
-//		strcpy(rs->dataValueFormatted, "Unavailable");
-//		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
-	} else if (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+	if ((result != modbusRequestAndResponseStatusValues::readDataInvalidValue) &&
+	    (result != modbusRequestAndResponseStatusValues::readDataRegisterSuccess)) {
 #ifdef DEBUG_RS485
 		rs485Errors++;
 #endif // DEBUG_RS485
@@ -1905,7 +1899,6 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case homeAssistantClass::homeAssistantClassSelect:
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"enum\""
-//		 ", \"force_update\": \"true\""
 			);
 		break;
 	case homeAssistantClass::homeAssistantClassNumber:
@@ -2390,11 +2383,11 @@ readEssOpData()
 }
 
 /*
-  sendData
-
-  Runs once every loop, checks to see if time periods have elapsed to allow the schedules to run.
-  Each time, the appropriate arrays are iterated, processed and added to the payload.
-*/
+ * sendData
+ *
+ * Runs once every loop, checks to see if time periods have elapsed to allow the schedules to run.
+ * Each time, the appropriate arrays are iterated, processed and added to the payload.
+ */
 void
 sendData()
 {
@@ -2520,10 +2513,10 @@ sendDataFromMqttState(mqttState *singleEntity, bool doHomeAssistant)
 
 
 /*
-  mqttCallback()
-
-// This function is executed when an MQTT message arrives on a topic that we are subscribed to.
-*/
+ * mqttCallback()
+ *
+ * This function is executed when an MQTT message arrives on a topic that we are subscribed to.
+ */
 void mqttCallback(char* topic, byte* message, unsigned int length)
 {
 	char mqttIncomingPayload[64] = ""; // Should be enough to cover command requests
