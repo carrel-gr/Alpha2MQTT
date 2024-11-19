@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.56";
+char _version[6] = "v2.57";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -57,7 +57,6 @@ PubSubClient _mqtt(_wifi);
 int _maxPayloadSize;
 
 // I want to declare this once at a modular level, keep the heap somewhere in check.
-//char _mqttPayload[MAX_MQTT_PAYLOAD_SIZE] = "";
 char* _mqttPayload;
 
 bool resendHaData = false;
@@ -2762,12 +2761,11 @@ void sendMqtt(const char *topic, bool retain)
 /*
  * emptyPayload
  *
- * Clears every char so end of string can be easily found
+ * Clears so we start at beginning.
  */
 void emptyPayload()
 {
-	// DAVE - can we just set first byte to NULL
-	memset(_mqttPayload, 0, _maxPayloadSize);
+	_mqttPayload[0] = '\0';
 }
 
 void
