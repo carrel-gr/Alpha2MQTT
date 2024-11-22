@@ -1308,27 +1308,27 @@ enum mqttEntityId {
 };
 
 enum mqttUpdateFreq {
-	updateFreqTenSec,
-	updateFreqOneMin,
-	updateFreqFiveMin,
-	updateFreqOneHour,
-	updateFreqOneDay,
-	updateFreqNever		// included in something else (i.e. statusTopic items)
+	freqTenSec,
+	freqOneMin,
+	freqFiveMin,
+	freqOneHour,
+	freqOneDay,
+	freqNever		// included in something else (i.e. statusTopic items)
 };
 
 enum homeAssistantClass {
-	homeAssistantClassEnergy,
-	homeAssistantClassPower,
-	homeAssistantClassBinaryProblem,
-	homeAssistantClassBattery,
-	homeAssistantClassVoltage,
-	homeAssistantClassCurrent,
-	homeAssistantClassTemp,
-	homeAssistantClassDuration,
-	homeAssistantClassInfo,
-	homeAssistantClassSelect,
-	homeAssistantClassBox,
-	homeAssistantClassNumber
+	haClassEnergy,
+	haClassPower,
+	haClassBinaryProblem,
+	haClassBattery,
+	haClassVoltage,
+	haClassCurrent,
+	haClassTemp,
+	haClassDuration,
+	haClassInfo,
+	haClassSelect,
+	haClassBox,
+	haClassNumber
 };
 
 enum opMode {
@@ -1353,6 +1353,7 @@ struct mqttState
 	char mqttName[MAX_MQTT_NAME_LENGTH];
 	mqttUpdateFreq updateFreq;
 	bool subscribe;
+	bool retain;
 	homeAssistantClass haClass;
 };
 
