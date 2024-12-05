@@ -33,7 +33,7 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_SSD1306.h>
 
 // Device parameters
-char _version[6] = "v2.59";
+char _version[6] = "v2.60";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -140,7 +140,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityBSSID,              "A2M_BSSID",            mqttUpdateFreq::freqOneMin,  false, false, homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityTxPower,            "A2M_TX_Power",         mqttUpdateFreq::freqOneMin,  false, false, homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityWifiRecon,          "A2M_reconnects",       mqttUpdateFreq::freqOneMin,  false, false, homeAssistantClass::haClassInfo },
-#endif // DEBUIG_WIFI
+#endif // DEBUG_WIFI
 	{ mqttEntityId::entityRs485Avail,         "RS485_Connected",      mqttUpdateFreq::freqNever,   false, true,  homeAssistantClass::haClassBinaryProblem },
 	{ mqttEntityId::entityA2MUptime,          "A2M_uptime",           mqttUpdateFreq::freqTenSec,  false, false, homeAssistantClass::haClassDuration },
 	{ mqttEntityId::entityA2MVersion,         "A2M_version",          mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
@@ -158,6 +158,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityGridEnergyFrom,     "Grid_Energy_From",     mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassEnergy },
 	{ mqttEntityId::entityPvPwr,              "Solar_Power",          mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassPower },
 	{ mqttEntityId::entityPvEnergy,           "Solar_Energy",         mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassEnergy },
+	{ mqttEntityId::entityFrequency,          "Frequency",            mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassFrequency },
 	{ mqttEntityId::entityOpMode,             "Op_Mode",              mqttUpdateFreq::freqOneMin,  true,  true,  homeAssistantClass::haClassSelect },
 	{ mqttEntityId::entitySocTarget,          "SOC_Target",           mqttUpdateFreq::freqOneMin,  true,  true,  homeAssistantClass::haClassBox },
 	{ mqttEntityId::entityChargePwr,          "Charge_Power",         mqttUpdateFreq::freqOneMin,  true,  true,  homeAssistantClass::haClassBox },
@@ -171,9 +172,9 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityInverterFaults,     "Inverter_Faults",      mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
 	{ mqttEntityId::entityInverterWarnings,   "Inverter_Warnings",    mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
 	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
-	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
-	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::freqOneMin,  true,  true,  homeAssistantClass::haClassBox },
-	{ mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassInfo }
+	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::freqOneDay,  false, false, homeAssistantClass::haClassInfo },
+	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::freqOneMin,  true,  false, homeAssistantClass::haClassBox },
+	{ mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::freqOneMin,  false, false, homeAssistantClass::haClassInfo }
 };
 
 
@@ -1525,6 +1526,47 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, rs);
 #endif // DEBUG_NO_RS485
 		break;
+	case mqttEntityId::entityFrequency:
+		{
+			uint16_t gf, pf, if1, if2, ibf, uf;
+#ifdef DEBUG_NO_RS485
+			gf = 6110; pf = 6120; if1 = 6130; if2 = 6140; ibf = 6150;
+			result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+			result = _registerHandler->readHandledRegister(REG_GRID_METER_R_FREQUENCY, rs);
+			gf = rs->unsignedShortValue;
+			pf = 0; if1 = 0; if2 = 0; ibf = 0;
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				result = _registerHandler->readHandledRegister(REG_PV_METER_R_FREQUENCY, rs);
+				pf = rs->unsignedShortValue;
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_FREQUENCY, rs);
+				if1 = rs->unsignedShortValue;
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_FREQUENCY, rs);
+				if2 = rs->unsignedShortValue;
+			}
+			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_BACKUP_FREQUENCY, rs);
+				ibf = rs->unsignedShortValue;
+			}
+#endif // DEBUG_NO_RS485
+			uf = pf;
+			if (uf == 0) uf = gf;
+			if (uf == 0) uf = if1;
+			if (uf == 0) uf = if2;
+			if (uf == 0) uf = ibf;
+			sprintf(rs->dataValueFormatted, "{ \"Use Frequency\": %0.02f, "
+				"\"Grid Frequency\": %0.02f, "
+				"\"PV Frequency\": %0.02f, "
+				"\"Inverter Frequency 1\": %0.02f, "
+				"\"Inverter Frequency 2\": %0.02f, "
+				"\"Inverter Backup Frequency\": %0.02f }",
+				uf * 0.01, gf * 0.01, pf * 0.01, if1 * 0.01, if2 * 0.01, ibf * 0.01);
+		}
+		break;
 	case mqttEntityId::entityPvPwr:
 		if (opData.essPvPower == INT32_MAX) {
 			result = modbusRequestAndResponseStatusValues::readDataInvalidValue;
@@ -1837,14 +1879,30 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"device_class\": \"energy\""
 			 ", \"state_class\": \"total_increasing\""
 			 ", \"unit_of_measurement\": \"kWh\""
-			 ", \"force_update\": \"true\"");
+#ifdef MQTT_FORCE_UPDATE
+			 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
+			);
 		break;
 	case homeAssistantClass::haClassPower:
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"power\""
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"W\""
-			 ", \"force_update\": \"true\"");
+#ifdef MQTT_FORCE_UPDATE
+			 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
+			);
+		break;
+	case homeAssistantClass::haClassFrequency:
+		snprintf(stateAddition, sizeof(stateAddition),
+			 ", \"device_class\": \"frequency\""
+			 ", \"state_class\": \"measurement\""
+			 ", \"unit_of_measurement\": \"Hz\""
+#ifdef MQTT_FORCE_UPDATE
+			 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
+			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassBinaryProblem:
 		snprintf(stateAddition, sizeof(stateAddition),
@@ -1858,28 +1916,39 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"device_class\": \"battery\""
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"%%\""
-			 ", \"force_update\": \"true\"");
+#ifdef MQTT_FORCE_UPDATE
+			 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
+			);
 		break;
 	case homeAssistantClass::haClassVoltage:
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"voltage\""
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"V\""
-			 ", \"force_update\": \"true\"");
+#ifdef MQTT_FORCE_UPDATE
+			 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
+			);
 		break;
 	case homeAssistantClass::haClassCurrent:
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"current\""
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"A\""
-			 ", \"force_update\": \"true\"");
+#ifdef MQTT_FORCE_UPDATE
+			 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
+			);
 		break;
 	case homeAssistantClass::haClassTemp:
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"temperature\""
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"°C\""
+#ifdef MQTT_FORCE_UPDATE
 //		 ", \"force_update\": \"true\""
+#endif // MQTT_FORCE_UPDATE
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassDuration:
@@ -1937,6 +2006,9 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityPvEnergy:
 		sprintf(stateAddition, ", \"icon\": \"mdi:solar-power-variant-outline\"");
 		break;
+	case mqttEntityId::entityFrequency:
+		sprintf(stateAddition, ", \"icon\": \"mdi:sine-wave\"");
+		break;
 	case mqttEntityId::entityGridPwr:
 		sprintf(stateAddition, ", \"icon\": \"mdi:transmission-tower\"");
 		break;
@@ -1964,11 +2036,8 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		break;
 	case mqttEntityId::entityOpMode:
 		snprintf(stateAddition, sizeof(stateAddition),
-			 ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]"
-#ifdef HA_IS_OP_MODE_AUTHORITY
-			 ", \"retain\": \"true\""
-#endif // HA_IS_OP_MODE_AUTHORITY
-			 , OP_MODE_DESC_LOAD_FOLLOW, OP_MODE_DESC_TARGET, OP_MODE_DESC_PUSH,
+			 ", \"options\": [ \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" ]",
+			 OP_MODE_DESC_LOAD_FOLLOW, OP_MODE_DESC_TARGET, OP_MODE_DESC_PUSH,
 			 OP_MODE_DESC_PV_CHARGE, OP_MODE_DESC_MAX_CHARGE, OP_MODE_DESC_NO_CHARGE);
 		break;
 	case mqttEntityId::entitySocTarget:
@@ -1977,11 +2046,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"%%\""
 			 ", \"icon\": \"mdi:battery\""
-			 ", \"min\": %d, \"max\": %d"
-#ifdef HA_IS_OP_MODE_AUTHORITY
-			 ", \"retain\": \"true\""
-#endif // HA_IS_OP_MODE_AUTHORITY
-			 ,
+			 ", \"min\": %d, \"max\": %d",
 			 SOC_TARGET_MIN, SOC_TARGET_MAX);
 		break;
 	case mqttEntityId::entityChargePwr:
@@ -1991,11 +2056,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"W\""
 			 ", \"icon\": \"mdi:lightning-bolt-circle\""
-			 ", \"min\": %d, \"max\": %d"
-#ifdef HA_IS_OP_MODE_AUTHORITY
-			 ", \"retain\": \"true\""
-#endif // HA_IS_OP_MODE_AUTHORITY
-			 ,
+			 ", \"min\": %d, \"max\": %d",
 			 0, INVERTER_POWER_MAX);
 		break;
 	case mqttEntityId::entityPushPwr:
@@ -2004,8 +2065,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"W\""
 			 ", \"icon\": \"mdi:lightning-bolt-circle\""
-			 ", \"min\": %d, \"max\": %d"
-			 ", \"retain\": \"true\"",
+			 ", \"min\": %d, \"max\": %d",
 			 0, INVERTER_POWER_MAX);
 		break;
 #ifdef DEBUG_WIFI
@@ -2060,6 +2120,15 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	}
 
 	if (singleEntity->subscribe) {
+#ifdef HA_IS_OP_MODE_AUTHORITY
+		if (singleEntity->retain) {
+			sprintf(stateAddition, ", \"retain\": \"true\"");
+			resultAddedToPayload = addToPayload(stateAddition);
+			if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+				return resultAddedToPayload;
+			}
+		}
+#endif // HA_IS_OP_MODE_AUTHORITY
 		sprintf(stateAddition, ", \"qos\": %d", MQTT_SUBSCRIBE_QOS);
 		resultAddedToPayload = addToPayload(stateAddition);
 		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
@@ -2073,48 +2142,44 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityInverterFaults:
 	case mqttEntityId::entityInverterWarnings:
 	case mqttEntityId::entitySystemFaults:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\""
 			", \"value_template\": \"{{ value_json[\\\"numEvents\\\"] | default(\\\"\\\") }}\""
 			", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
 			haUniqueId, singleEntity->mqttName,
 			haUniqueId, singleEntity->mqttName);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-		}
+		break;
+	case mqttEntityId::entityFrequency:
+		snprintf(stateAddition, sizeof(stateAddition),
+			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\""
+			", \"value_template\": \"{{ value_json[\\\"Use Frequency\\\"] | default(\\\"\\\") }}\""
+			", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
+			haUniqueId, singleEntity->mqttName,
+			haUniqueId, singleEntity->mqttName);
 		break;
 	case mqttEntityId::entityRs485Avail:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"%s\""
 			", \"value_template\": \"{{ value_json[\\\"rs485Status\\\"] | default(\\\"\\\") }}\""
 			", \"json_attributes_topic\": \"%s\"",
 			statusTopic, statusTopic);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-		}
 		break;
 	case mqttEntityId::entityGridAvail:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"%s\""
 			", \"value_template\": \"{{ value_json[\\\"gridStatus\\\"] | default(\\\"\\\") }}\""
 			", \"json_attributes_topic\": \"%s\"",
 			statusTopic, statusTopic);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-		}
 		break;
 	default:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
 			haUniqueId, singleEntity->mqttName);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-	}
 		break;
+	}
+	resultAddedToPayload = addToPayload(stateAddition);
+	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+		return resultAddedToPayload;
 	}
 
 	if (singleEntity->subscribe) {
@@ -2134,6 +2199,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityBatEnergyDischarge:
 	case entityPvPwr:
 	case entityPvEnergy:
+	case entityFrequency:
 	case entityBatTemp:
 	case entityInverterTemp:
 	case entityBatFaults:
@@ -2143,25 +2209,17 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entitySystemFaults:
 	case entityRegNum:
 	case entityRegValue:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-		}
 		break;
 	// Entities that are unavailable when grid or rs485 is off
 	case entityGridPwr:
 	case entityGridEnergyTo:
 	case entityGridEnergyFrom:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" and value_json[\\\"gridStatus\\\"] == \\\"online\\\" else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-		}
 		break;
 	// Values that shouldn't change. Keep showing even if RS485 is out.
 	case entityGridAvail:
@@ -2195,14 +2253,14 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityChargePwr:
 	case entityDischargePwr:
 	case entityPushPwr:
-		sprintf(stateAddition,
+		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ value_json[\\\"a2mStatus\\\"] | default(\\\"\\\") }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
-		resultAddedToPayload = addToPayload(stateAddition);
-		if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
-			return resultAddedToPayload;
-		}
 		break;
+	}
+	resultAddedToPayload = addToPayload(stateAddition);
+	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
+		return resultAddedToPayload;
 	}
 
 	strcpy(stateAddition, "}");

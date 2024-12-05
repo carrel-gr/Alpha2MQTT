@@ -49,13 +49,18 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define OLED_HAS_RST_PIN
 
 // Set this to true to set the "retain" flag when publishing to MQTT
+// "retain" is also a flag in mqttState.   This is AND-ed with that.
+// This does NOT control whether we tell HA to add "retain" to command topics that it publishes back to us.
 #define MQTT_RETAIN true
 // Set this to 1 or 0
 #define MQTT_SUBSCRIBE_QOS 1
-// Define this to make Home Assistant be the "authority" for OpMode.
+// Define this to make Home Assistant be the "authority" for OpMode and related values.
 // When HA is the authority, then on reboot, let HA tell us what our OpMode is.
 // When HA is not the authority, then on reboot, read the ESS state and tell HA.
+// This controls whether or not we tell HA to add "retain" to command topics that it publishes back to us.
 #define HA_IS_OP_MODE_AUTHORITY
+// Define this to enable the HA force_update option for many (not all) sensors.
+//#define MQTT_FORCE_UPDATE
 
 // The ESP8266 has limited memory and so reserving lots of RAM to build a payload and MQTT buffer causes out of memory exceptions.
 // 4096 works well given the RAM requirements of Alpha2MQTT.
@@ -364,7 +369,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define REG_INVERTER_HOME_R_BACKUP_POWER_L3_2										0x0419	// 1W/bit
 #define REG_INVERTER_HOME_R_BACKUP_POWER_TOTAL_1									0x041A	// 1W/bit								// 4 Bytes		// Unsigned Integer
 //#define REG_INVERTER_HOME_R_BACKUP_POWER_TOTAL_2									0x041B	// 1W/bit
-#define REG_INVERTER_HOME_R_FREQUENCY												0x041C	// 0.1Hz/bit							// 2 Bytes		// Unsigned Short
+#define REG_INVERTER_HOME_R_FREQUENCY												0x041C	// 0.01Hz/bit							// 2 Bytes		// Unsigned Short
 #define REG_INVERTER_HOME_R_PV1_VOLTAGE												0x041D	// 0.1V/bit								// 2 Bytes		// Unsigned Short
 #define REG_INVERTER_HOME_R_PV1_CURRENT												0x041E	// 0.1A/bit								// 2 Bytes		// Unsigned Short
 #define REG_INVERTER_HOME_R_PV1_POWER_1												0x041F	// 1W/bit								// 4 Bytes		// Unsigned Integer
@@ -1289,6 +1294,7 @@ enum mqttEntityId {
 	entityGridEnergyFrom,
 	entityPvPwr,
 	entityPvEnergy,
+	entityFrequency,
 	entityOpMode,
 	entitySocTarget,
 	entityChargePwr,
@@ -1323,6 +1329,7 @@ enum homeAssistantClass {
 	haClassBattery,
 	haClassVoltage,
 	haClassCurrent,
+	haClassFrequency,
 	haClassTemp,
 	haClassDuration,
 	haClassInfo,
