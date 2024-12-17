@@ -81,6 +81,7 @@ To build this hardware you need to follow the [original project instructions](RE
 - There is one entity ("**Register Number**") that allows you to view AlphaESS register values.  Enter a register number (in decimal, not hex) in this entity, and you will see the (formatted) value in "**Register Value**".  This is only intended for debugging.
 
 ### Other Changes and Enhancements
+- Quite a few new registers have been added.  (See [Specs](#alphaess-specs) above.)
 - This uses an MQTT Last Will and Testament (LWT) along with 2 other statuses to set the availability of all of its entities.
 - This uses the MQTT retain flag along with other MQTT options to ensure as-graceful-as-possible handling of situations where this device, HA, or the MQTT broker might reboot or go offline.
 - The WiFi code has been tweaked to better handle Multi-AP environments and low signal situations.
