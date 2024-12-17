@@ -1076,7 +1076,7 @@ void updateRunstate()
 /*
  * mqttReconnect
  *
- * This function reconnects the ESP8266 to the MQTT broker
+ * This function reconnects to the MQTT broker
  */
 void
 mqttReconnect(void)
@@ -1084,7 +1084,6 @@ mqttReconnect(void)
 	bool subscribed = false;
 	char subscriptionDef[100];
 	char line3[OLED_CHARACTER_WIDTH];
-	char line4[OLED_CHARACTER_WIDTH];
 	int tries = 0;
 
 	// Loop until we're reconnected
@@ -1103,7 +1102,6 @@ mqttReconnect(void)
 #endif
 
 		snprintf(line3, sizeof(line3), "MQTT %d ...", tries);
-		snprintf(line4, sizeof(line4), "RSSI %d", WiFi.RSSI());
 		updateOLED(false, "Connecting", line3, _version);
 		delay(100);
 
@@ -1947,7 +1945,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"state_class\": \"measurement\""
 			 ", \"unit_of_measurement\": \"°C\""
 #ifdef MQTT_FORCE_UPDATE
-//		 ", \"force_update\": \"true\""
+//			 ", \"force_update\": \"true\""
 #endif // MQTT_FORCE_UPDATE
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
