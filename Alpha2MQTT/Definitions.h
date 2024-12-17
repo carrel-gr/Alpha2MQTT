@@ -40,7 +40,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define MP_ESP8266
 
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
-// Don't set this if using the  ESP8266 64x48 display.
+// Don't set this if using the ESP8266 OLED Shield 64x48 display.
 #define LARGE_DISPLAY
 
 // If your OLED does have an RST pin, set this.
@@ -65,7 +65,6 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // The ESP8266 has limited memory and so reserving lots of RAM to build a payload and MQTT buffer causes out of memory exceptions.
 // 4096 works well given the RAM requirements of Alpha2MQTT.
 // If you aren't using an ESP8266 you may be able to increase this.
-// At 4096 (4095 usable) you can request up to around 70 to 80 registers on a schedule or by request.
 // Alpha2MQTT on boot will request a buffer size of (MAX_MQTT_PAYLOAD_SIZE + MQTT_HEADER_SIZE) for MQTT, and
 // MAX_MQTT_PAYLOAD_SIZE for building payloads.  If these fail and your device doesn't boot, you can assume you've set this too high.
 #define MAX_MQTT_PAYLOAD_SIZE 4096

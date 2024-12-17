@@ -1,0 +1,558 @@
+alias: ESS
+description: ""
+triggers:
+  - at: "00:00:00"
+    id: start off peak
+    trigger: time
+  - trigger: time
+    at: "13:30:00"
+    id: pre-pre mid-peak
+  - at: "14:00:00"
+    id: pre mid-peak
+    trigger: time
+  - at: "15:00:00"
+    id: start mid-peak
+    trigger: time
+  - trigger: time
+    at: "16:00:00"
+    id: start peak
+  - trigger: time
+    at: "17:00:00"
+    id: peak check 1
+  - trigger: time
+    at: "18:00:00"
+    id: peak check 2
+  - trigger: time
+    at: "19:00:00"
+    id: peak check 3
+  - trigger: time
+    at: "20:00:00"
+    id: peak check 4
+  - trigger: time
+    at: "21:00:00"
+    id: restart mid-peak
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - start off peak
+        sequence:
+          - if:
+              - condition: numeric_state
+                entity_id: sensor.nws_alerts
+                above: 0
+            then:
+              - action: notify.persistent_notification
+                metadata: {}
+                data:
+                  message: ESS immediate charge due to NWS Alert
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: Max Charge
+            else:
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: PV Charge
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: number
+                entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                type: set_value
+                value: 100
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: number
+                entity_id: 557b511685a9ba8c3b566a98b8197eb4
+                type: set_value
+                value: 9000
+      - conditions:
+          - condition: trigger
+            id:
+              - pre-pre mid-peak
+          - type: is_battery_level
+            condition: device
+            device_id: 9b00b159543c2f19dba318dea6e49eb2
+            entity_id: e5c043667373e929feba8693472a7da6
+            domain: sensor
+            below: 30
+        sequence:
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: select_option
+            option: Max Charge
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+            type: set_value
+            value: 100
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: 557b511685a9ba8c3b566a98b8197eb4
+            type: set_value
+            value: 9600
+      - conditions:
+          - condition: trigger
+            id:
+              - pre mid-peak
+        sequence:
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: select_option
+            option: Max Charge
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+            type: set_value
+            value: 100
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: 557b511685a9ba8c3b566a98b8197eb4
+            type: set_value
+            value: 9000
+      - conditions:
+          - condition: trigger
+            id:
+              - start mid-peak
+        sequence:
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: select_option
+            option: No Charge
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+            type: set_value
+            value: 30
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: b54f1cc8bb6706e3ffeff337c3f9b0c3
+            type: set_value
+            value: 9600
+      - conditions:
+          - condition: trigger
+            id:
+              - start peak
+        sequence:
+          - if:
+              - condition: numeric_state
+                entity_id: sensor.nws_alerts
+                above: 0
+            then:
+              - action: notify.persistent_notification
+                metadata: {}
+                data:
+                  message: NWS Alert at start of peak.  Not discharging ESS.
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: No Charge
+            else:
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: Push To Grid
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: number
+                entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                type: set_value
+                value: 30
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: number
+                entity_id: 1bd8c4fad457bb752dfade43b8576397
+                type: set_value
+                value: 2000
+      - conditions:
+          - condition: trigger
+            id:
+              - peak check 1
+          - condition: device
+            device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: selected_option
+            option: Push To Grid
+        sequence:
+          - if:
+              - condition: numeric_state
+                entity_id: sensor.nws_alerts
+                above: 0
+            then:
+              - action: notify.persistent_notification
+                metadata: {}
+                data:
+                  message: NWS Alert at peak check 1.  Not discharging ESS.
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: No Charge
+            else:
+              - if:
+                  - type: is_battery_level
+                    condition: device
+                    device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    entity_id: e5c043667373e929feba8693472a7da6
+                    domain: sensor
+                    below: 50
+                then:
+                  - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    domain: select
+                    entity_id: e514c8994edaf312807cab13576109f0
+                    type: select_option
+                    option: No Charge
+                else:
+                  - if:
+                      - type: is_battery_level
+                        condition: device
+                        device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        entity_id: e5c043667373e929feba8693472a7da6
+                        domain: sensor
+                        below: 60
+                    then:
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: 1bd8c4fad457bb752dfade43b8576397
+                        type: set_value
+                        value: 750
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                        type: set_value
+                        value: 40
+                    else:
+                      - if:
+                          - type: is_battery_level
+                            condition: device
+                            device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            entity_id: e5c043667373e929feba8693472a7da6
+                            domain: sensor
+                            below: 70
+                        then:
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: 1bd8c4fad457bb752dfade43b8576397
+                            type: set_value
+                            value: 1000
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                            type: set_value
+                            value: 35
+                        else:
+                          - if:
+                              - type: is_battery_level
+                                condition: device
+                                device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                entity_id: e5c043667373e929feba8693472a7da6
+                                domain: sensor
+                                below: 80
+                            then:
+                              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                domain: number
+                                entity_id: 1bd8c4fad457bb752dfade43b8576397
+                                type: set_value
+                                value: 1500
+                              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                domain: number
+                                entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                                type: set_value
+                                value: 30
+      - conditions:
+          - condition: trigger
+            id:
+              - peak check 2
+          - condition: device
+            device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: selected_option
+            option: Push To Grid
+        sequence:
+          - if:
+              - condition: numeric_state
+                entity_id: sensor.nws_alerts
+                above: 0
+            then:
+              - action: notify.persistent_notification
+                metadata: {}
+                data:
+                  message: NWS Alert at peak check 2.  Not discharging ESS.
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: No Charge
+            else:
+              - if:
+                  - type: is_battery_level
+                    condition: device
+                    device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    entity_id: e5c043667373e929feba8693472a7da6
+                    domain: sensor
+                    below: 40
+                then:
+                  - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    domain: select
+                    entity_id: e514c8994edaf312807cab13576109f0
+                    type: select_option
+                    option: No Charge
+                else:
+                  - if:
+                      - type: is_battery_level
+                        condition: device
+                        device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        entity_id: e5c043667373e929feba8693472a7da6
+                        domain: sensor
+                        below: 50
+                    then:
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: 1bd8c4fad457bb752dfade43b8576397
+                        type: set_value
+                        value: 750
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                        type: set_value
+                        value: 40
+                    else:
+                      - if:
+                          - type: is_battery_level
+                            condition: device
+                            device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            entity_id: e5c043667373e929feba8693472a7da6
+                            domain: sensor
+                            below: 60
+                        then:
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: 1bd8c4fad457bb752dfade43b8576397
+                            type: set_value
+                            value: 1000
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                            type: set_value
+                            value: 35
+                        else:
+                          - if:
+                              - type: is_battery_level
+                                condition: device
+                                device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                entity_id: e5c043667373e929feba8693472a7da6
+                                domain: sensor
+                                below: 75
+                            then:
+                              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                domain: number
+                                entity_id: 1bd8c4fad457bb752dfade43b8576397
+                                type: set_value
+                                value: 1500
+                              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                domain: number
+                                entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                                type: set_value
+                                value: 30
+      - conditions:
+          - condition: trigger
+            id:
+              - peak check 3
+          - condition: device
+            device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: selected_option
+            option: Push To Grid
+        sequence:
+          - if:
+              - condition: numeric_state
+                entity_id: sensor.nws_alerts
+                above: 0
+            then:
+              - action: notify.persistent_notification
+                metadata: {}
+                data:
+                  message: NWS Alert at peak check 3.  Not discharging ESS.
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: No Charge
+            else:
+              - if:
+                  - type: is_battery_level
+                    condition: device
+                    device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    entity_id: e5c043667373e929feba8693472a7da6
+                    domain: sensor
+                    below: 35
+                then:
+                  - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    domain: select
+                    entity_id: e514c8994edaf312807cab13576109f0
+                    type: select_option
+                    option: No Charge
+                else:
+                  - if:
+                      - type: is_battery_level
+                        condition: device
+                        device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        entity_id: e5c043667373e929feba8693472a7da6
+                        domain: sensor
+                        below: 40
+                    then:
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: 1bd8c4fad457bb752dfade43b8576397
+                        type: set_value
+                        value: 750
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                        type: set_value
+                        value: 35
+                    else:
+                      - if:
+                          - type: is_battery_level
+                            condition: device
+                            device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            entity_id: e5c043667373e929feba8693472a7da6
+                            domain: sensor
+                            below: 50
+                        then:
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: 1bd8c4fad457bb752dfade43b8576397
+                            type: set_value
+                            value: 1000
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                            type: set_value
+                            value: 30
+                        else:
+                          - if:
+                              - type: is_battery_level
+                                condition: device
+                                device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                entity_id: e5c043667373e929feba8693472a7da6
+                                domain: sensor
+                                below: 60
+                            then:
+                              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                domain: number
+                                entity_id: 1bd8c4fad457bb752dfade43b8576397
+                                type: set_value
+                                value: 1500
+                              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                                domain: number
+                                entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                                type: set_value
+                                value: 30
+      - conditions:
+          - condition: trigger
+            id:
+              - peak check 4
+          - condition: device
+            device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: selected_option
+            option: Push To Grid
+        sequence:
+          - if:
+              - condition: numeric_state
+                entity_id: sensor.nws_alerts
+                above: 0
+            then:
+              - action: notify.persistent_notification
+                metadata: {}
+                data:
+                  message: NWS Alert at peak check 4.  Not discharging ESS.
+              - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                domain: select
+                entity_id: e514c8994edaf312807cab13576109f0
+                type: select_option
+                option: No Charge
+            else:
+              - if:
+                  - type: is_battery_level
+                    condition: device
+                    device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    entity_id: e5c043667373e929feba8693472a7da6
+                    domain: sensor
+                    below: 35
+                then:
+                  - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                    domain: select
+                    entity_id: e514c8994edaf312807cab13576109f0
+                    type: select_option
+                    option: No Charge
+                else:
+                  - if:
+                      - type: is_battery_level
+                        condition: device
+                        device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        entity_id: e5c043667373e929feba8693472a7da6
+                        domain: sensor
+                        below: 40
+                    then:
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: 1bd8c4fad457bb752dfade43b8576397
+                        type: set_value
+                        value: 1000
+                      - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                        domain: number
+                        entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                        type: set_value
+                        value: 35
+                    else:
+                      - if:
+                          - type: is_battery_level
+                            condition: device
+                            device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            entity_id: e5c043667373e929feba8693472a7da6
+                            domain: sensor
+                            below: 50
+                        then:
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: 1bd8c4fad457bb752dfade43b8576397
+                            type: set_value
+                            value: 1500
+                          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+                            domain: number
+                            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+                            type: set_value
+                            value: 30
+      - conditions:
+          - condition: trigger
+            id:
+              - restart mid-peak
+        sequence:
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: select
+            entity_id: e514c8994edaf312807cab13576109f0
+            type: select_option
+            option: No Charge
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: afb5a4aac29ca9020aa50eb97fb809ed
+            type: set_value
+            value: 30
+          - device_id: 9b00b159543c2f19dba318dea6e49eb2
+            domain: number
+            entity_id: b54f1cc8bb6706e3ffeff337c3f9b0c3
+            type: set_value
+            value: 9600
+mode: single
