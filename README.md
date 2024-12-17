@@ -69,8 +69,8 @@ To build this hardware you need to follow the [original project instructions](RE
     - My peak electricity price hours are 4pm to 9pm.  My mid-peak is 3pm to 4pm and 9pm to midnight.  Off-peak is midnight to 3pm.  My tarrif allows me to sell power that I push to the grid for the same price that I would pay for it.
     - I try to ONLY use battery or solar during peak and mid-peak.
     - I try to push some saved battery power back to the grid during peak, but only if the SOC is high enough and only when there are no storm alerts. I check, and adjust, each hour during peak.
-    - Even though it costs the same, I prefer to charge using solar rather than using the grid, except when there are storms, and then I charge as soon as the rates are cheap.  If I am only charging by solar, then a bit before rates get expensive, I fill the battery fro the grid in case it isn't full.
-  - [Here](Dave_Examples/Dave_ESS_Automation.yaml.txt) is my yaml.
+    - Even though it costs the same, I prefer to charge using solar rather than using the grid, except when there are storms, and then I charge as soon as the rates are cheap.  A bit before rates get expensive, I fill the battery from the grid in case it isn't full. (It is _almost_ always already full.)
+  - [Here](Dave_Examples/Dave_ESS_Automation.yaml.txt) is my yaml that accomplishes this.  This is all in a single automation named "ESS".
 - Other Device control
   - You can also use the ESS state to control other devices in Home Assistant.  For example, if Alpha2MQTT detects that the grid has become unavailable, then it turns off my EVSE (car "charger").
   - I'd love to hear what you are controlling...
