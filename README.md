@@ -27,7 +27,7 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 - Plug in RS485 and power.  At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
 - (optional) Configure the HA Energy dashboard to use these new entities.  All the necessary entities are provided for grid, solar, and battery.
 - (optional) Create an ESS dashboard.  (See [Dashboard Example](#dashboard-example) below.)
-- (optional) Create ESS automations to control the ESS.  (See [Automations Example](#automation-example) below.)
+- (optional) Create ESS automations to control the ESS.  (See [Automations Example](#automation-examples) below.)
 
 ## More Details
 ### What you will see
