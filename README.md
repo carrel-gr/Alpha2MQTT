@@ -3,7 +3,7 @@
 
 _**Credit!** This project is entirely derived from https://github.com/dxoverdy/Alpha2MQTT (original README is [here](README-orig.md))which is a really great bit of work.  My hardware is just some small tweaks on that project's hardware.  My software has changed a lot from that project, but at its core, this project is derived from that project and would not exist without that project. So HUGE credit and thanks._
 
-**What is this?** This project is a controller that connects Home Assistant to an AlphaESS system via RS485 and uses MQTT discovery to set up a ready to go integration.  This is local control with NO cloud dependancy.  Once you plug-in and turn on this A2M hardware, your ESS will appear as a unique HA/MQTT device with HA entities ready to monitor and control your AlphaESS system.  No HA configuration is needed.  The entities are ready to be used by the Energy dashboard and can be included in other dashboards and automations.  (Examples below.)  This controller also provides [Operating Modes](#operating-modes) that enhance the AlphaESS functionality while making it simpler to control.
+**What is this?** This project is a controller that connects Home Assistant to an AlphaESS system via RS485 and uses MQTT discovery to set up a ready to go integration.  This is local control with NO cloud dependancy.  Once you plug-in and turn on this A2M hardware, your ESS will appear as a unique HA/MQTT device with HA entities ready to monitor and [control](#controlling-your-ess) your AlphaESS system.  No HA configuration is needed.  The entities are ready to be used by the Energy dashboard and can be included in other [dashboards](#dashboard-example) and [automations](#automation-examples).  This controller also provides [Operating Modes](#operating-modes) that enhance the AlphaESS functionality while making it simpler to [control](#controlling-your-ess).
 
 **What's Different?** The big change is that rather than being a general purpose interface between MQTT and an AlphaESS system, this project is a controller specifically designed to work as a Home Assistant integration for your AlphaESS system.  It uses MQTT discovery to be plug-and-play so that no HA configuration is needed.  And it adds some "smart", real-time capabilities in the controller so that HA automation control is simplified.  This also incorporates several newer versions of the [AlphaESS specs](#alphaess-specs), and has enhancements/tweaks/fixes to WiFi and RS485 functionality.
 
@@ -36,14 +36,16 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 ![MQTT Devices](Pics/Dave_MQTT_Devices.png)
 - Now click on your device and you'll see this, which is every entity that is provided for your device:
 ![MQTT A2M](Pics/Dave_MQTT_A2M.png)
-### Operating Modes
-To control your ESS, set an Operating Mode and the control parameters used for that mode.  Operating Modes are a bit different from AlphaESS internal modes.  They are similar, but add more fuctionality.  For example, most Alpha modes don't honor a target SOC, but most Operating Modes do.  Here are all the modes:
-- "**Load Follow**": This is the same as the AlphaESS "Load Follow" except this also honors the "SOC Target" setting.  Alpha says their "Load Follow" mode and their "Normal" modes are the same.  This will also use the "Charge Power" and "Discharge Power" settings.  I don't personally use this mode.
-- "**Target SOC**": This will charge or discharge the ESS, as appropriate, to reach the "SOC Target".  This will use the "Charge Power" and "Discharge Power" settings.
-- "**Push To Grid**": This will push power to the grid until the "SOC Target" is reached.  It only uses the "Push Power" setting to determine the discharge power.  When PV is producing more than the house loaed, this pushes the excess PV power **plus** the "Push Power" amount to the grid.  When PV is producing less than the house load, then this pushes the "Push Power" amount to the grid.  The Alpha2MQTT controller dynamically adjusts the AlphaESS setting (without needing HA involvement) to achieve this.
-- "**PV Charge**": This will charge the ESS only from PV power that exceeds the house load.  This uses the "SOC Target" and "Charge Power" settings.  When PV power is less than the house load, the grid is used to supply the difference.  If PV power exceeds the house load plus "Charge Power", or if the "SOC Target" is reached, then excess PV is pushed to the grid.
+
+### Controlling Your ESS
+There are 5 control entities for controlling your ESS.  There is "**Op Mode**", "**SOC Target**", "**Charge Power**", "**Discharge Power**", and "**Push Power**".  Control is simple.  You set an "**Op Mode**" and the other control entities that are appropriate for that mode.  Operating Modes are a bit different from AlphaESS internal modes.  They are similar, but add more fuctionality.  For example, most Alpha modes don't honor a target SOC, but most Operating Modes do.  Here are all the modes and which other controls each uses:
+- "**Load Follow**": This is the same as the AlphaESS "Load Follow" except this also honors the "**SOC Target**" setting.  (Alpha says their "Load Follow" mode and their "Normal" modes are the same.)  This mode uses "**Charge Power**" and "**Discharge Power**" settings.  I don't personally use this mode in my automations.
+- "**Target SOC**": This will charge or discharge the ESS, as appropriate, to reach the "**SOC Target**".  This will use the "**Charge Power**" and "**Discharge Power**" settings.
+- "**Push To Grid**": This will push power to the grid until the "**SOC Target**" is reached.  It only uses the "**Push Power**" setting to determine the discharge power.  When PV is producing more than the house load, this pushes the excess PV power **plus** the "**Push Power**" amount to the grid.  When PV is producing less than the house load, then this pushes the "**Push Power**" amount to the grid.  The Alpha2MQTT controller dynamically adjusts the AlphaESS setting (without needing HA involvement) to achieve this.
+- "**PV Charge**": This will charge the ESS only from PV power that exceeds the house load.  This uses the "**SOC Target**" and "**Charge Power**" settings.  When PV power is less than the house load, the grid is used to supply the difference.  The ESS is charged only when PV power exceeds the house load.  If PV power exceeds the house load plus "**Charge Power**", or if the "**SOC Target**" is reached, then excess PV is pushed to the grid.
 - "**Max Charge**": This will charge the ESS from any source (PV or grid) as fast as it can until it is full.  Grid supplies the house load.  Excess PV is pushed to the grid.
 - "**No Charge**": This will not charge the ESS from any source, and will use the ESS for house loads when PV is less than the house load.  Excess PV is pushed to the grid.
+
 ### AlphaESS Specs
 Alpha2MQTT honours 1.28 AlphaESS Modbus documentation.  The latest register list I found came from October 2024.
 
@@ -59,7 +61,7 @@ To build this hardware you need to follow the [original project instructions](RE
 
 ### Dashboard Example
 - I tied into the Home Assistant builtin Energy dashboard by simply editing its configuration and adding grid to/from, solar, battery to/from, and battery SOC.  Voila!
-- Here is my ESS dashboard.  This was simple to make using the HA builtin visual editor. ([Here](Dave_Examples/Dave_ESS_Dashboard.yaml.txt) is the yaml.)  I used "energy-flow-card-plus" and "power-flow-card-plus" which are available through HACS.  In the middle section there are several entities that appear and disappear depending on the current Op Mode.  In the right section you can click on any of the Faults or Warnings, the click on the Attributes, and you will see which registers are monitored and which bits are set.
+- Here is my ESS dashboard.  This was simple to make using the HA builtin visual editor. ([Here](Dave_Examples/Dave_ESS_Dashboard.yaml.txt) is the yaml.)  I used "energy-flow-card-plus" and "power-flow-card-plus" which are available through HACS.  In the middle section there are several entities that appear and disappear depending on the current Op Mode.
 ![ESS Dashboard](Pics/Dave_ESS_Dashboard.png)
 ### Automation Examples
 - ESS control - First off, I **highly** recommend that you have only ONE system controlling your ESS.  Alpha2MQTT can be used to simply monitor your ESS.  However, if you are using Alpha2MQTT to control your ESS, then be sure no other system is controlling it.  I allow the Alpha cloud to monitor my system, but it does NO control.
@@ -72,6 +74,12 @@ To build this hardware you need to follow the [original project instructions](RE
 - Other Device control
   - You can also use the ESS state to control other devices in Home Assistant.  For example, if Alpha2MQTT detects that the grid has become unavailable, then it turns off my EVSE (car "charger").
   - I'd love to hear what you are controlling...
+
+### Tips/Hints/Suggestions
+- Only the "**Max Charge**" "Op Mode" will do cell balancing.  Other modes are fine to use, but every so often you should run a "**Max Charge**" to balance things out.
+- There are several Faults and Warnings entities for each of the system components, and each of them monitors multiple AlphaESS registers.  These entities are simple numbers, but they also have an attribute which provides more detail. Click on the entity, then click Attributes, and you will see which registers are monitored and which bits are set.
+- There is one entity ("**Register Number**") that allows you to view AlphaESS register values.  Enter a register number (in decimal, not hex) in this entity, and you will see the (formatted) value in "**Register Value**".  This is only intended for debugging.
+
 ### Other Changes and Enhancements
 - This uses an MQTT Last Will and Testament (LWT) along with 2 other statuses to set the availability of all of its entities.
 - This uses the MQTT retain flag along with other MQTT options to ensure as-graceful-as-possible handling of situations where this device, HA, or the MQTT broker might reboot or go offline.
