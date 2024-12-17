@@ -22,7 +22,7 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 
 ## Steps to get running.
 - Build the hardware.  (See [HARDWARE](#hardware) below)
-- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md.md#flashing).  For changes to Definitions.h you should follow the instructions in the file itself, as this file has changed a fair bit.
+- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing).  For changes to Definitions.h you should follow the instructions in the file itself, as this file has changed a fair bit.
 - Enable MQTT discovery in Home Assistant (if this isn't on already).
 - Plug in RS485 and power.  At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
 - (optional) Configure the HA Energy dashboard to use these new entities.  All the necessary entities are provided for grid, solar, and battery.
