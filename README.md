@@ -63,6 +63,8 @@ To build this hardware you need to follow the [original project instructions](RE
 - I tied into the Home Assistant builtin Energy dashboard by simply editing its configuration and adding grid to/from, solar, battery to/from, and battery SOC.  Voila!
 - Here is my ESS dashboard.  This was simple to make using the HA builtin visual editor. ([Here](Dave_Examples/Dave_ESS_Dashboard.yaml.txt) is the yaml.)  I used "energy-flow-card-plus" and "power-flow-card-plus" which are available through HACS.  In the middle section there are several entities that appear and disappear depending on the current Op Mode.
 ![ESS Dashboard](Pics/Dave_ESS_Dashboard.png)
+- Here is the same dashboard when the ESS is in a different Op Mode.  Note: The middle column has more entities showing in this Op Mode.
+![ESS Dashboard](Pics/Dave_ESS_Dashboard_2.png)
 ### Automation Examples
 - ESS control - First off, I **highly** recommend that you have only ONE system controlling your ESS.  Alpha2MQTT can be used to simply monitor your ESS.  However, if you are using Alpha2MQTT to control your ESS, then be sure no other system is controlling it.  I allow the Alpha cloud to monitor my system, but it does NO control.
   - This control is a little complex, but not too bad.  Let me try to explain all the parts.
