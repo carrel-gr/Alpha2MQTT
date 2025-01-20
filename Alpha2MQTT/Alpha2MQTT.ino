@@ -32,8 +32,10 @@ First, go and customise options at the top of Definitions.h!
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+#define popcount __builtin_popcount
+
 // Device parameters
-char _version[6] = "v2.60";
+char _version[6] = "v2.61";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -116,7 +118,7 @@ struct {
 	int16_t  essBatteryPower = 0;	// positive->discharge : negative->charge
 	int32_t  essGridPower = 0;	// positive->fromGrid : negative->toGrid
 	int32_t  essPvPower = 0;	// Positive
-	bool     essGridConnected = false;
+	uint16_t essInverterMode = 0;
 	bool     essRs485Connected = false;
 } opData;
 
@@ -1107,7 +1109,7 @@ mqttReconnect(void)
 
 		// Attempt to connect
 		if (_mqtt.connect(haUniqueId, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true,
-				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"offline\", \"gridStatus\": \"offline\" }")) {
+				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"offline\", \"inverterMode\": \"Unknown\" }")) {
 			int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 #ifdef DEBUG_OVER_SERIAL
 			Serial.println("Connected MQTT");
@@ -1319,8 +1321,8 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			}
 #endif // DEBUG_NO_RS485
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				count = std::popcount(bf) + std::popcount(bf1) + std::popcount(bf2) + std::popcount(bf3) +
-					std::popcount(bf4) + std::popcount(bf5) + std::popcount(bf6);
+				count = popcount(bf) + popcount(bf1) + popcount(bf2) + popcount(bf3) +
+					popcount(bf4) + popcount(bf5) + popcount(bf6);
 				sprintf(rs->dataValueFormatted, "{ \"numEvents\": %u, "
 								  "\"Battery Faults (0x%04X)\": \"0x%08X\","
 								  "\"Battery Faults 1 (0x%04X)\": \"0x%08X\","
@@ -1371,8 +1373,8 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			}
 #endif // DEBUG_NO_RS485
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				count = std::popcount(bw) + std::popcount(bw1) + std::popcount(bw2) + std::popcount(bw3) +
-					std::popcount(bw4) + std::popcount(bw5) + std::popcount(bw6);
+				count = popcount(bw) + popcount(bw1) + popcount(bw2) + popcount(bw3) +
+					popcount(bw4) + popcount(bw5) + popcount(bw6);
 				sprintf(rs->dataValueFormatted, "{ \"numEvents\": %u, "
 								  "\"Battery Warnings (0x%04X)\": \"0x%08X\","
 								  "\"Battery Warnings 1 (0x%04X)\": \"0x%08X\","
@@ -1427,9 +1429,9 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 #endif // EMS_35_36
 #endif // DEBUG_NO_RS485
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				count = std::popcount(if1) + std::popcount(if2);
+				count = popcount(if1) + popcount(if2);
 #ifdef EMS_35_36
-				count += std::popcount(ife1) + std::popcount(ife2) + std::popcount(ife3) + std::popcount(ife4);
+				count += popcount(ife1) + popcount(ife2) + popcount(ife3) + popcount(ife4);
 #endif // EMS_35_36
 				sprintf(rs->dataValueFormatted, "{ \"numEvents\": %u, "
 								  "\"Inverter Faults 1 (0x%04X)\": \"0x%08X\","
@@ -1465,7 +1467,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			}
 #endif // DEBUG_NO_RS485
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				count = std::popcount(iw1) + std::popcount(iw2);
+				count = popcount(iw1) + popcount(iw2);
 				sprintf(rs->dataValueFormatted, "{ \"numEvents\": %u, "
 								  "\"Inverter Warnings 1 (0x%04X)\": \"0x%08X\","
 								  "\"Inverter Warnings 2 (0x%04X)\": \"0x%08X\" }",
@@ -1488,7 +1490,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 			}
 #endif // DEBUG_NO_RS485
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				count = std::popcount(sf) + std::popcount(sf1);
+				count = popcount(sf) + popcount(sf1);
 				sprintf(rs->dataValueFormatted, "{ \"numEvents\": %u, "
 								  "\"System Faults (0x%04X)\": \"0x%08X\","
 								  "\"System Faults 1 (0x%04X)\": \"0x%08X\" }",
@@ -1575,7 +1577,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entityGridEnergyTo:
 #ifdef DEBUG_NO_RS485
-		if (opData.essGridConnected) {
+		if (opData.essInverterMode == INVERTER_OPERATION_MODE_ONLINE_MODE) {
 			rs->unsignedIntValue = 4477;
 		} else {
 			rs->unsignedIntValue = 0;
@@ -1593,7 +1595,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entityGridEnergyFrom:
 #ifdef DEBUG_NO_RS485
-		if (opData.essGridConnected) {
+		if (opData.essInverterMode == INVERTER_OPERATION_MODE_ONLINE_MODE) {
 			rs->unsignedIntValue = 4488;
 		} else {
 			rs->unsignedIntValue = 0;
@@ -1797,13 +1799,52 @@ void
 sendStatus(void)
 {
 	char stateAddition[128] = "";
+	const char *inverterModeDesc;
 	modbusRequestAndResponseStatusValues resultAddedToPayload;
 
 	emptyPayload();
 
-	snprintf(stateAddition, sizeof(stateAddition), "{ \"a2mStatus\": \"online\", \"rs485Status\": \"%s\", \"gridStatus\": \"%s\" }",
-		 opData.essRs485Connected ? "online" : "offline",
-		 opData.essGridConnected ? "online" : "offline");
+	switch (opData.essInverterMode) {
+	case INVERTER_OPERATION_MODE_WAIT_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_WAIT_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_ONLINE_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_ONLINE_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPS_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPS_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_BYPASS_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_BYPASS_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_ERROR_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_ERROR_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_DC_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_DC_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_SELF_TEST_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_SELF_TEST_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_CHECK_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_CHECK_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPDATE_MASTER_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_MASTER_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPDATE_SLAVE_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_SLAVE_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPDATE_ARM_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_ARM_MODE_DESC;
+		break;
+	default:
+		inverterModeDesc = "Unknown";
+		break;
+	}
+
+	snprintf(stateAddition, sizeof(stateAddition), "{ \"a2mStatus\": \"online\", \"rs485Status\": \"%s\", \"inverterMode\": \"%s\" }",
+		 opData.essRs485Connected ? "online" : "offline", inverterModeDesc);
 	resultAddedToPayload = addToPayload(stateAddition);
 	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 		return;
@@ -1903,6 +1944,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassBinaryProblem:
+		// Because this is a "Problem", on = offline and off = online
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"problem\""
 			 ", \"payload_on\": \"offline\""
@@ -2165,9 +2207,9 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityGridAvail:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"%s\""
-			", \"value_template\": \"{{ value_json[\\\"gridStatus\\\"] | default(\\\"\\\") }}\""
+			", \"value_template\": \"{{ \\\"online\\\" if value_json[\\\"inverterMode\\\"] == \\\"%s\\\" else \\\"offline\\\" }}\""
 			", \"json_attributes_topic\": \"%s\"",
-			statusTopic, statusTopic);
+			statusTopic, INVERTER_OPERATION_MODE_ONLINE_MODE_DESC, statusTopic);
 		break;
 	default:
 		snprintf(stateAddition, sizeof(stateAddition),
@@ -2207,6 +2249,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entitySystemFaults:
 	case entityRegNum:
 	case entityRegValue:
+	case entityGridAvail:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
@@ -2216,11 +2259,10 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityGridEnergyTo:
 	case entityGridEnergyFrom:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" and value_json[\\\"gridStatus\\\"] == \\\"online\\\" else \\\"offline\\\" }}\""
-			", \"availability_topic\": \"%s\"", statusTopic);
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" and value_json[\\\"inverterMode\\\"] == \\\"%s\\\" else \\\"offline\\\" }}\""
+			", \"availability_topic\": \"%s\"", INVERTER_OPERATION_MODE_ONLINE_MODE_DESC, statusTopic);
 		break;
 	// Values that shouldn't change. Keep showing even if RS485 is out.
-	case entityGridAvail:
 	case entityInverterSn:
 	case entityInverterVersion:
 	case entityEmsSn:
@@ -2318,14 +2360,18 @@ readEssOpData()
 
 #ifdef DEBUG_NO_RS485
 	static unsigned long lastRs485 = 0, lastGrid = 0;
-	static bool essGridConnected = false;
+	static uint16_t essInverterMode = INVERTER_OPERATION_MODE_UPS_MODE;
 
 	if (!checkTimer(&lastRs485, STATUS_INTERVAL_TEN_SECONDS * 2)) {
 		opData.essRs485Connected = !opData.essRs485Connected;
 	}
 
 	if (!checkTimer(&lastGrid, STATUS_INTERVAL_ONE_MINUTE)) {
-		essGridConnected = !essGridConnected;
+		if (essInverterMode == INVERTER_OPERATION_MODE_UPS_MODE) {
+			essInverterMode = INVERTER_OPERATION_MODE_ONLINE_MODE;
+		} else {
+			essInverterMode = INVERTER_OPERATION_MODE_UPS_MODE;
+		}
 	}
 
 	if (opData.essRs485Connected) {
@@ -2337,7 +2383,7 @@ readEssOpData()
 		opData.essBatteryPower = -1357;
 		opData.essGridPower = -1368;
 		opData.essPvPower = -1379;
-		opData.essGridConnected = essGridConnected;
+		opData.essInverterMode = essInverterMode;
 	} else {
 		opData.essDispatchStart = UINT16_MAX;
 		opData.essDispatchMode = UINT16_MAX;
@@ -2347,8 +2393,8 @@ readEssOpData()
 		opData.essBatteryPower = INT16_MAX;
 		opData.essGridPower = INT32_MAX;
 		opData.essPvPower = INT32_MAX;
-		// Don't change opData.essGridConnected
-		gotError = 8;
+		opData.essInverterMode = UINT16_MAX;
+		gotError = 9;
 	}
 #else // DEBUG_NO_RS485
 	modbusRequestAndResponseStatusValues result = modbusRequestAndResponseStatusValues::preProcessing;
@@ -2410,21 +2456,12 @@ readEssOpData()
 		opData.essPvPower = INT32_MAX;
 		gotError++;
 	}
-	result = _registerHandler->readHandledRegister(REG_GRID_METER_R_VOLTAGE_OF_A_PHASE, &response);
+	result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_WORKING_MODE, &response);
 	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		if (response.unsignedShortValue <= 215 || response.unsignedShortValue >= 265) {
-			// De-bounce.  If "off" then try reading again.
-			result = _registerHandler->readHandledRegister(REG_GRID_METER_R_VOLTAGE_OF_A_PHASE, &response);
-		}
-	}
-	if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-		if (response.unsignedShortValue > 215 && response.unsignedShortValue < 265) {
-			opData.essGridConnected = true;
-		} else {
-			opData.essGridConnected = false;
-		}
+		opData.essInverterMode = response.unsignedShortValue;
 	} else {
-		// Leave unchanged if we can't read the value.
+		opData.essInverterMode = UINT16_MAX;
+		gotError++;
 	}
 	opData.essRs485Connected = _modBus->isRs485Online();
 #endif // DEBUG_NO_RS485
