@@ -35,7 +35,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.61";
+char _version[6] = "v2.62";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -1109,7 +1109,7 @@ mqttReconnect(void)
 
 		// Attempt to connect
 		if (_mqtt.connect(haUniqueId, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true,
-				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"offline\", \"inverterMode\": \"Unknown\" }")) {
+				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"offline\", \"inverterMode\": \"offline\" }")) {
 			int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 #ifdef DEBUG_OVER_SERIAL
 			Serial.println("Connected MQTT");
@@ -1837,6 +1837,9 @@ sendStatus(void)
 		break;
 	case INVERTER_OPERATION_MODE_UPDATE_ARM_MODE:
 		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_ARM_MODE_DESC;
+		break;
+	case UINT16_MAX:
+		inverterModeDesc = "unavailable";
 		break;
 	default:
 		inverterModeDesc = "Unknown";
