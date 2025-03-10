@@ -126,6 +126,9 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define CHARGE_CUT_SOC_MULTIPLIER 1
 // Most all battery SOC values use this multiplier.  Do note that DISPATCH_SOC_MULTIPLIER (below) is different
 #define BATTERY_SOC_MULTIPLIER 0.1
+#define BATTERY_KWH_MULTIPLIER 0.1
+#define BATTERY_TEMP_MULTIPLIER 0.1
+#define FREQUENCY_MULTIPLIER 0.01
 
 // I beg to differ on this, I'd say it's more 0.396 based on my tests
 // However make it easily customisable here

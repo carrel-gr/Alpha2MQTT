@@ -1915,7 +1915,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// 0.01Hz
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * FREQUENCY_MULTIPLIER);
 			break;
 		}
 		case REG_GRID_METER_R_ACTIVE_POWER_OF_A_PHASE_1:
@@ -2144,7 +2144,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// 0.01Hz
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * FREQUENCY_MULTIPLIER);
 			break;
 		}
 		case REG_PV_METER_R_ACTIVE_POWER_OF_A_PHASE_1:
@@ -2310,7 +2310,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// 0.1/bit
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_SOC_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_STATUS:
@@ -2460,7 +2460,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Short
 			// 0.001D/bit
 			// ###HERE###
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * BATTERY_TEMP_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_PACK_ID_OF_MAX_CELL_TEMPERATURE:
@@ -2484,7 +2484,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Short
 			// 0.001D/bit
 			// ###HERE###
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * BATTERY_TEMP_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_MAX_CHARGE_CURRENT:
@@ -2556,7 +2556,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Short
 			// 0.1kWh/bit
 			// 114 so 11.4, correct for me
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_KWH_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_BATTERY_TYPE:
@@ -2754,7 +2754,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 0.1kWh/bit
 			// Lifetime charge in kWh
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * BATTERY_KWH_MULTIPLIER);
 			break;
 		}
 
@@ -2763,7 +2763,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 0.1kWh/bit
 			// Lifetime discharge in kWh
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * BATTERY_KWH_MULTIPLIER);
 			break;
 		}
 
@@ -2772,7 +2772,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Integer
 			// 0.1kWh/bit
 			// Lifetime charge from grid in kWh
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedIntValue * BATTERY_KWH_MULTIPLIER);
 			break;
 		}
 
@@ -2797,7 +2797,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Short
 			// 0.1/bit (Rate_SOC UPS_SOC)
 			// Zero for me, however cannot verify as not sure purpose
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_SOC_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_BATTERY_IMPLEMENTATION_DISCHARGE_SOC:
@@ -2805,7 +2805,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Short
 			// 0.1/bit (Rate_SOC UPS_SOC)
 			// Zero for me, however cannot verify as not sure purpose
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_SOC_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_BATTERY_REMAINING_CHARGE_SOC:
@@ -2813,7 +2813,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Short
 			// 0.1/bit (Rate_SOC Remain_SOC)
 			// Zero for me, however cannot verify as not sure purpose
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_SOC_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_BATTERY_REMAINING_DISCHARGE_SOC:
@@ -2821,7 +2821,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 			// Type: Unsigned Short
 			// 0.1/bit (Remain_SOC UPS_SOC)
 			// Zero for me, however cannot verify as not sure purpose
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * BATTERY_SOC_MULTIPLIER);
 			break;
 		}
 		case REG_BATTERY_HOME_R_BATTERY_MAX_CHARGE_POWER:
@@ -3145,7 +3145,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// 0.1Hz/bit
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * FREQUENCY_MULTIPLIER);
 			break;
 		}
 		case REG_INVERTER_HOME_R_PV1_VOLTAGE:
@@ -3453,14 +3453,14 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// 0.01Hz/bit
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * FREQUENCY_MULTIPLIER);
 			break;
 		}
 		case REG_INVERTER_HOME_R_INVERTER_BACKUP_FREQUENCY:
 		{
 			// Type: Unsigned Short
 			// 0.01Hz/bit
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.01);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * FREQUENCY_MULTIPLIER);
 			break;
 		}
 		case REG_INVERTER_HOME_R_INVERTER_POWER_FACTOR:
