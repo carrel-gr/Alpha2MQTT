@@ -35,7 +35,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.62";
+char _version[6] = "v2.63";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -118,7 +118,7 @@ struct {
 	int16_t  essBatteryPower = 0;	// positive->discharge : negative->charge
 	int32_t  essGridPower = 0;	// positive->fromGrid : negative->toGrid
 	int32_t  essPvPower = 0;	// Positive
-	uint16_t essInverterMode = 0;
+	uint16_t essInverterMode = UINT16_MAX;
 	bool     essRs485Connected = false;
 } opData;
 
@@ -174,6 +174,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityInverterFaults,     "Inverter_Faults",      mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
 	{ mqttEntityId::entityInverterWarnings,   "Inverter_Warnings",    mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
 	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
+	{ mqttEntityId::entityInverterMode,       "Inverter_Mode",        mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::freqOneDay,  false, false, homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::freqOneMin,  true,  false, homeAssistantClass::haClassBox },
 	{ mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::freqOneMin,  false, false, homeAssistantClass::haClassInfo }
@@ -1109,7 +1110,7 @@ mqttReconnect(void)
 
 		// Attempt to connect
 		if (_mqtt.connect(haUniqueId, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true,
-				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"offline\", \"inverterMode\": \"offline\" }")) {
+				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"unavailable\", \"gridStatus\": \"unavailable\" }")) {
 			int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 #ifdef DEBUG_OVER_SERIAL
 			Serial.println("Connected MQTT");
@@ -1257,7 +1258,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entityBatCap:
 #ifdef DEBUG_NO_RS485
-		sprintf(rs->dataValueFormatted, "%0.02f", 2345 * INVERTER_TEMP_MULTIPLIER);
+		sprintf(rs->dataValueFormatted, "%0.02f", 41 * BATTERY_KWH_MULTIPLIER);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BATTERY_CAPACITY, rs);
@@ -1273,7 +1274,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entityBatTemp:
 #ifdef DEBUG_NO_RS485
-		sprintf(rs->dataValueFormatted, "%0.02f", 2750 * INVERTER_TEMP_MULTIPLIER);
+		sprintf(rs->dataValueFormatted, "%0.02f", 2750 * BATTERY_TEMP_MULTIPLIER);
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_MAX_CELL_TEMPERATURE, rs);
@@ -1564,8 +1565,13 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 				"\"Inverter Frequency 1\": %0.02f, "
 				"\"Inverter Frequency 2\": %0.02f, "
 				"\"Inverter Backup Frequency\": %0.02f }",
-				uf * 0.01, gf * 0.01, pf * 0.01, if1 * 0.01, if2 * 0.01, ibf * 0.01);
+				uf * FREQUENCY_MULTIPLIER, gf * FREQUENCY_MULTIPLIER, pf * FREQUENCY_MULTIPLIER,
+				if1 * FREQUENCY_MULTIPLIER, if2 * FREQUENCY_MULTIPLIER, ibf * FREQUENCY_MULTIPLIER);
 		}
+		break;
+	case mqttEntityId::entityInverterMode:
+		getInverterModeDesc(rs->dataValueFormatted, sizeof(rs->dataValueFormatted), opData.essInverterMode);
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 		break;
 	case mqttEntityId::entityPvPwr:
 		if (opData.essPvPower == INT32_MAX) {
@@ -1577,7 +1583,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entityGridEnergyTo:
 #ifdef DEBUG_NO_RS485
-		if (opData.essInverterMode == INVERTER_OPERATION_MODE_ONLINE_MODE) {
+		if (isGridOnline() == gridStatus::gridOnline) {
 			rs->unsignedIntValue = 4477;
 		} else {
 			rs->unsignedIntValue = 0;
@@ -1595,7 +1601,7 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entityGridEnergyFrom:
 #ifdef DEBUG_NO_RS485
-		if (opData.essInverterMode == INVERTER_OPERATION_MODE_ONLINE_MODE) {
+		if (isGridOnline() == gridStatus::gridOnline) {
 			rs->unsignedIntValue = 4488;
 		} else {
 			rs->unsignedIntValue = 0;
@@ -1799,55 +1805,26 @@ void
 sendStatus(void)
 {
 	char stateAddition[128] = "";
-	const char *inverterModeDesc;
+	const char *gridStatusStr;
 	modbusRequestAndResponseStatusValues resultAddedToPayload;
 
-	emptyPayload();
-
-	switch (opData.essInverterMode) {
-	case INVERTER_OPERATION_MODE_WAIT_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_WAIT_MODE_DESC;
+	switch (isGridOnline()) {
+	case gridStatus::gridOnline:
+		gridStatusStr = "connected";
 		break;
-	case INVERTER_OPERATION_MODE_ONLINE_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_ONLINE_MODE_DESC;
+	case gridStatus::gridOffline:
+		gridStatusStr = "disconnected";
 		break;
-	case INVERTER_OPERATION_MODE_UPS_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_UPS_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_BYPASS_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_BYPASS_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_ERROR_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_ERROR_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_DC_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_DC_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_SELF_TEST_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_SELF_TEST_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_CHECK_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_CHECK_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_UPDATE_MASTER_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_MASTER_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_UPDATE_SLAVE_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_SLAVE_MODE_DESC;
-		break;
-	case INVERTER_OPERATION_MODE_UPDATE_ARM_MODE:
-		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_ARM_MODE_DESC;
-		break;
-	case UINT16_MAX:
-		inverterModeDesc = "unavailable";
-		break;
+	case gridStatus::gridUnknown:
 	default:
-		inverterModeDesc = "Unknown";
+		gridStatusStr = "unknown";
 		break;
 	}
 
-	snprintf(stateAddition, sizeof(stateAddition), "{ \"a2mStatus\": \"online\", \"rs485Status\": \"%s\", \"inverterMode\": \"%s\" }",
-		 opData.essRs485Connected ? "online" : "offline", inverterModeDesc);
+	emptyPayload();
+
+	snprintf(stateAddition, sizeof(stateAddition), "{ \"a2mStatus\": \"online\", \"rs485Status\": \"%s\", \"gridStatus\": \"%s\" }",
+		 opData.essRs485Connected ? "connected" : "disconnected", gridStatusStr);
 	resultAddedToPayload = addToPayload(stateAddition);
 	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 		return;
@@ -1947,11 +1924,11 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassBinaryProblem:
-		// Because this is a "Problem", on = offline and off = online
+		// Because this is a "Problem", on = disconnected and off = connected
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"problem\""
-			 ", \"payload_on\": \"offline\""
-			 ", \"payload_off\": \"online\""
+			 ", \"payload_on\": \"disconnected\""
+			 ", \"payload_off\": \"connected\""
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassBattery:
@@ -2042,6 +2019,9 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		break;
 	case mqttEntityId::entityGridReg:
 		sprintf(stateAddition, ", \"icon\": \"mdi:security\"");
+		break;
+	case mqttEntityId::entityInverterMode:
+		sprintf(stateAddition, ", \"icon\": \"mdi:format-list-numbered\"");
 		break;
 	case mqttEntityId::entityPvPwr:
 		sprintf(stateAddition, ", \"icon\": \"mdi:solar-power\"");
@@ -2187,7 +2167,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entitySystemFaults:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\""
-			", \"value_template\": \"{{ value_json[\\\"numEvents\\\"] | default(\\\"\\\") }}\""
+			", \"value_template\": \"{{ value_json.numEvents | default(\\\"\\\") }}\""
 			", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
 			haUniqueId, singleEntity->mqttName,
 			haUniqueId, singleEntity->mqttName);
@@ -2203,16 +2183,16 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityRs485Avail:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"%s\""
-			", \"value_template\": \"{{ value_json[\\\"rs485Status\\\"] | default(\\\"\\\") }}\""
+			", \"value_template\": \"{{ value_json.rs485Status | default(\\\"\\\") }}\""
 			", \"json_attributes_topic\": \"%s\"",
 			statusTopic, statusTopic);
 		break;
 	case mqttEntityId::entityGridAvail:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"%s\""
-			", \"value_template\": \"{{ \\\"online\\\" if value_json[\\\"inverterMode\\\"] == \\\"%s\\\" else \\\"offline\\\" }}\""
+			", \"value_template\": \"{{ value_json.gridStatus | default(\\\"\\\") }}\""
 			", \"json_attributes_topic\": \"%s\"",
-			statusTopic, INVERTER_OPERATION_MODE_ONLINE_MODE_DESC, statusTopic);
+			statusTopic, statusTopic);
 		break;
 	default:
 		snprintf(stateAddition, sizeof(stateAddition),
@@ -2252,9 +2232,15 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entitySystemFaults:
 	case entityRegNum:
 	case entityRegValue:
+	case entityInverterMode:
+		snprintf(stateAddition, sizeof(stateAddition),
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"connected\\\" else \\\"offline\\\" }}\""
+			", \"availability_topic\": \"%s\"", statusTopic);
+		break;
+	// Entities that are unavailable when grid is unknown or rs485 is off
 	case entityGridAvail:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" else \\\"offline\\\" }}\""
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"connected\\\" and value_json.gridStatus in ( \\\"connected\\\", \\\"disconnected\\\" ) else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
 		break;
 	// Entities that are unavailable when grid or rs485 is off
@@ -2262,8 +2248,8 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityGridEnergyTo:
 	case entityGridEnergyFrom:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ \\\"online\\\" if value_json[\\\"a2mStatus\\\"] == \\\"online\\\" and value_json[\\\"rs485Status\\\"] == \\\"online\\\" and value_json[\\\"inverterMode\\\"] == \\\"%s\\\" else \\\"offline\\\" }}\""
-			", \"availability_topic\": \"%s\"", INVERTER_OPERATION_MODE_ONLINE_MODE_DESC, statusTopic);
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"connected\\\" and value_json.gridStatus == \\\"connected\\\" else \\\"offline\\\" }}\""
+			", \"availability_topic\": \"%s\"", statusTopic);
 		break;
 	// Values that shouldn't change. Keep showing even if RS485 is out.
 	case entityInverterSn:
@@ -2272,7 +2258,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityEmsVersion:
 	case entityBatCap:
 	case entityGridReg:
-	// These entities are available even when RS485 is out.
+	// These entities are truly available even when RS485 is out.
 #ifdef DEBUG_FREEMEM
 	case entityFreemem:
 #endif // DEBUG_FREEMEM
@@ -2297,7 +2283,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityDischargePwr:
 	case entityPushPwr:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ value_json[\\\"a2mStatus\\\"] | default(\\\"\\\") }}\""
+			", \"availability_template\": \"{{ value_json.a2mStatus | default(\\\"\\\") }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
 		break;
 	}
@@ -2365,13 +2351,17 @@ readEssOpData()
 	static unsigned long lastRs485 = 0, lastGrid = 0;
 	static uint16_t essInverterMode = INVERTER_OPERATION_MODE_UPS_MODE;
 
-	if (!checkTimer(&lastRs485, STATUS_INTERVAL_TEN_SECONDS * 2)) {
+	if (checkTimer(&lastRs485, STATUS_INTERVAL_TEN_SECONDS)) {
 		opData.essRs485Connected = !opData.essRs485Connected;
 	}
 
-	if (!checkTimer(&lastGrid, STATUS_INTERVAL_ONE_MINUTE)) {
+	if (checkTimer(&lastGrid, STATUS_INTERVAL_TEN_SECONDS * 2)) {
 		if (essInverterMode == INVERTER_OPERATION_MODE_UPS_MODE) {
 			essInverterMode = INVERTER_OPERATION_MODE_ONLINE_MODE;
+		} else if (essInverterMode == INVERTER_OPERATION_MODE_ONLINE_MODE) {
+			essInverterMode = INVERTER_OPERATION_MODE_CHECK_MODE;
+		} else if (essInverterMode == INVERTER_OPERATION_MODE_CHECK_MODE) {
+			essInverterMode = UINT16_MAX;
 		} else {
 			essInverterMode = INVERTER_OPERATION_MODE_UPS_MODE;
 		}
@@ -2466,7 +2456,13 @@ readEssOpData()
 		opData.essInverterMode = UINT16_MAX;
 		gotError++;
 	}
-	opData.essRs485Connected = _modBus->isRs485Online();
+	{
+		bool essRs485WasConnected = opData.essRs485Connected;
+		opData.essRs485Connected = _modBus->isRs485Online();
+		if (!essRs485WasConnected && opData.essRs485Connected) {
+			resendAllData = true;
+		}
+	}
 #endif // DEBUG_NO_RS485
 
 	if (gotError != 0) {
@@ -2855,6 +2851,79 @@ void sendMqtt(const char *topic, bool retain)
 void emptyPayload()
 {
 	_mqttPayload[0] = '\0';
+}
+
+void
+getInverterModeDesc(char *dest, size_t size, uint16_t inverterMode)
+{
+	const char *inverterModeDesc = NULL;
+
+	switch (inverterMode) {
+	case INVERTER_OPERATION_MODE_WAIT_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_WAIT_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_ONLINE_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_ONLINE_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPS_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPS_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_BYPASS_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_BYPASS_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_ERROR_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_ERROR_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_DC_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_DC_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_SELF_TEST_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_SELF_TEST_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_CHECK_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_CHECK_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPDATE_MASTER_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_MASTER_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPDATE_SLAVE_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_SLAVE_MODE_DESC;
+		break;
+	case INVERTER_OPERATION_MODE_UPDATE_ARM_MODE:
+		inverterModeDesc = INVERTER_OPERATION_MODE_UPDATE_ARM_MODE_DESC;
+		break;
+	case UINT16_MAX:
+		inverterModeDesc = "unavailable";
+		break;
+	default:
+		snprintf(dest, size, "unknown %u", inverterMode);
+		inverterModeDesc = NULL;
+		break;
+	}
+	if (inverterModeDesc != NULL) {
+		strlcpy(dest, inverterModeDesc, size);
+	}
+}
+
+enum gridStatus
+isGridOnline(void)
+{
+	enum gridStatus ret;
+
+	switch (opData.essInverterMode) {
+	case INVERTER_OPERATION_MODE_ONLINE_MODE:
+	case INVERTER_OPERATION_MODE_CHECK_MODE:
+		ret = gridStatus::gridOnline;
+		break;
+	case INVERTER_OPERATION_MODE_UPS_MODE:
+		ret = gridStatus::gridOffline;
+		break;
+	case UINT16_MAX:
+	default:
+		ret = gridStatus::gridUnknown;
+		break;
+	}
+	return ret;
 }
 
 void

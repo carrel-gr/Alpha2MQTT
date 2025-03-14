@@ -1310,6 +1310,7 @@ enum mqttEntityId {
 	entityInverterFaults,
 	entityInverterWarnings,
 	entitySystemFaults,
+	entityInverterMode,
 	entityGridReg,
 	entityRegNum,
 	entityRegValue
@@ -1355,6 +1356,12 @@ enum opMode {
 #define OP_MODE_DESC_LOAD_FOLLOW	"Load Follow"
 #define OP_MODE_DESC_MAX_CHARGE		"Max Charge"
 #define OP_MODE_DESC_NO_CHARGE		"No Charge"
+
+enum gridStatus {
+	gridOnline,
+	gridOffline,
+	gridUnknown
+};
 
 struct mqttState
 {
