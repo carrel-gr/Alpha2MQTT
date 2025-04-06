@@ -35,7 +35,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.63";
+char _version[6] = "v2.64";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -1810,10 +1810,10 @@ sendStatus(void)
 
 	switch (isGridOnline()) {
 	case gridStatus::gridOnline:
-		gridStatusStr = "connected";
+		gridStatusStr = "OK";
 		break;
 	case gridStatus::gridOffline:
-		gridStatusStr = "disconnected";
+		gridStatusStr = "Problem";
 		break;
 	case gridStatus::gridUnknown:
 	default:
@@ -1824,7 +1824,7 @@ sendStatus(void)
 	emptyPayload();
 
 	snprintf(stateAddition, sizeof(stateAddition), "{ \"a2mStatus\": \"online\", \"rs485Status\": \"%s\", \"gridStatus\": \"%s\" }",
-		 opData.essRs485Connected ? "connected" : "disconnected", gridStatusStr);
+		 opData.essRs485Connected ? "OK" : "Problem", gridStatusStr);
 	resultAddedToPayload = addToPayload(stateAddition);
 	if (resultAddedToPayload == modbusRequestAndResponseStatusValues::payloadExceededCapacity) {
 		return;
@@ -1924,11 +1924,10 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassBinaryProblem:
-		// Because this is a "Problem", on = disconnected and off = connected
 		snprintf(stateAddition, sizeof(stateAddition),
 			 ", \"device_class\": \"problem\""
-			 ", \"payload_on\": \"disconnected\""
-			 ", \"payload_off\": \"connected\""
+			 ", \"payload_on\": \"Problem\""
+			 ", \"payload_off\": \"OK\""
 			 ", \"entity_category\": \"diagnostic\"");
 		break;
 	case homeAssistantClass::haClassBattery:
@@ -2234,13 +2233,13 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityRegValue:
 	case entityInverterMode:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"connected\\\" else \\\"offline\\\" }}\""
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"OK\\\" else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
 		break;
 	// Entities that are unavailable when grid is unknown or rs485 is off
 	case entityGridAvail:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"connected\\\" and value_json.gridStatus in ( \\\"connected\\\", \\\"disconnected\\\" ) else \\\"offline\\\" }}\""
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"OK\\\" and value_json.gridStatus in ( \\\"OK\\\", \\\"Problem\\\" ) else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
 		break;
 	// Entities that are unavailable when grid or rs485 is off
@@ -2248,7 +2247,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityGridEnergyTo:
 	case entityGridEnergyFrom:
 		snprintf(stateAddition, sizeof(stateAddition),
-			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"connected\\\" and value_json.gridStatus == \\\"connected\\\" else \\\"offline\\\" }}\""
+			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"OK\\\" and value_json.gridStatus == \\\"OK\\\" else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
 		break;
 	// Values that shouldn't change. Keep showing even if RS485 is out.
