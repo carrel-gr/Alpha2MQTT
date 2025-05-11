@@ -24,7 +24,9 @@ First, go and customise options at the top of Definitions.h!
 #include <ESP8266WiFi.h>
 #elif defined MP_ESP32
 #include <WiFi.h>
+#ifndef MP_XIAO_ESP32C6
 #define LED_BUILTIN 2
+#endif // ! MP_XIAO_ESP32C6
 #endif
 #include <PubSubClient.h>
 #include <SPI.h>
@@ -35,7 +37,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.64";
+char _version[6] = "v2.65";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -193,16 +195,14 @@ static struct mqttState _mqttAllEntities[] =
 #define UPDATE_STATUS_BAR_INTERVAL 500
 
 #ifdef LARGE_DISPLAY
+// Pins GPIO22 and GPIO21 (SCL/SDA) if ESP32
+// Pins GPIO23 and GPIO22 (SCL/SDA) if XIAO ESP32C6
 Adafruit_SSD1306 _display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 0);
 #else // LARGE_DISPLAY
 // Wemos OLED Shield set up. 64x48
 // Pins D1 D2 if ESP8266
 // Pins GPIO22 and GPIO21 (SCL/SDA) with optional reset on GPIO13 if ESP32
-#ifdef OLED_HAS_RST_PIN
-Adafruit_SSD1306 _display(0);
-#else
-Adafruit_SSD1306 _display(-1); // No RESET Pin
-#endif
+Adafruit_SSD1306 _display(OLED_RST_PIN);
 #endif // LARGE_DISPLAY
 
 /*
@@ -219,6 +219,7 @@ void setup()
 	modbusRequestAndResponse response;
 	char baudRateString[10] = "";
 	int baudRateIterator = -1;
+	char *uartDebug;
 
 #if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 	// Set up serial for debugging using an appropriate baud rate
@@ -233,7 +234,7 @@ void setup()
 	// Wire.setClock(10000);
 
 	// Display time
-	_display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize OLED with the I2C addr 0x3C (for the 64x48)
+	_display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);  // initialize OLED
 	_display.clearDisplay();
 	_display.display();
 	updateOLED(false, "", "", _version);
@@ -298,6 +299,8 @@ void setup()
 	// Set up the helper class for reading with reading registers
 	_registerHandler = new RegisterHandler(_modBus);
 
+	uartDebug = _modBus->uartInfo();
+
 	// Iterate known baud rates until we find a success
 	while (!gotResponse) {
 		// Starts at -1, so increment to 0 for example
@@ -311,7 +314,7 @@ void setup()
 		// Update the display
 		sprintf(baudRateString, "%lu", knownBaudRates[baudRateIterator]);
 
-		updateOLED(false, "Test Baud", baudRateString, "");
+		updateOLED(false, "Test Baud", baudRateString, uartDebug);
 #ifdef DEBUG_OVER_SERIAL
 		sprintf(_debugOutput, "About To Try: %lu", knownBaudRates[baudRateIterator]);
 		Serial.println(_debugOutput);
@@ -483,6 +486,13 @@ setupWifi(bool initialConnect)
 	if (initialConnect) {
 		WiFi.disconnect(); // If it auto-started, restart it our way.
 		delay(100);
+#ifdef MP_XIAO_ESP32C6
+		pinMode(WIFI_ENABLE, OUTPUT);
+		digitalWrite(WIFI_ENABLE, LOW);
+		delay(100);
+		pinMode(WIFI_ANT_CONFIG, OUTPUT);
+		digitalWrite(WIFI_ANT_CONFIG, WIFI_EXT_ANT);
+#endif // MP_XIAO_ESP32C6
 #ifdef DEBUG_WIFI
 	} else {
 		wifiReconnects++;

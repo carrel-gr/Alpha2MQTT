@@ -29,8 +29,8 @@ RS485Handler::RS485Handler()
 	_RS485Serial = new SoftwareSerial(RX_PIN, TX_PIN);
 	_RS485Serial->begin(DEFAULT_BAUD_RATE, SWSERIAL_8N1);
 #elif defined MP_ESP32
-	_RS485Serial = new HardwareSerial(2); // Serial 2 PIN16=RXgreen, pin17=TXwhite
-	_RS485Serial->begin(DEFAULT_BAUD_RATE, SERIAL_8N1, 16, 17);
+	_RS485Serial = new HardwareSerial(HW_UART_NUM);
+	_RS485Serial->begin(DEFAULT_BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN);
 #endif
 	
 	_rs485IsOnline = false;
@@ -48,6 +48,27 @@ RS485Handler::~RS485Handler()
 	_RS485Serial = NULL;
 }
 
+
+/*
+ * uartInfo()
+ *
+ * Return UART debug info string
+ */
+char *
+RS485Handler::uartInfo(void)
+{
+#define STRINGIFY(x) #x
+#define TO_STRING(x) STRINGIFY(x) // Needed for proper expansion
+#if defined MP_ESP8266
+	snprintf(uartInfoString, sizeof(uartInfoString), "SW %s/%s/%s",
+		 TO_STRING(RX_PIN), TO_STRING(TX_PIN), TO_STRING(SERIAL_COMMUNICATION_CONTROL_PIN));
+#elif defined MP_ESP32
+	snprintf(uartInfoString, sizeof(uartInfoString), "HW:%s %s/%s/%s", _RS485Serial ? TO_STRING(HW_UART_NUM) : "err",
+		 TO_STRING(RX_PIN), TO_STRING(TX_PIN), TO_STRING(SERIAL_COMMUNICATION_CONTROL_PIN));
+#endif
+
+	return &uartInfoString[0];
+}
 
 /*
 setBaudRate()

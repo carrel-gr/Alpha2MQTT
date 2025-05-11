@@ -39,10 +39,18 @@ Handles Modbus requests and responses in a tidy class separate from main program
 #define RX_PIN D6							// Serial Receive pin
 #define TX_PIN D7							// Serial Transmit pin
 #elif defined MP_ESP32
+#ifdef MP_XIAO_ESP32C6
+#define SERIAL_COMMUNICATION_CONTROL_PIN D8	// Transmission set pin - GPIO21 / D3
+#define RX_PIN D7							// Serial Receive pin - GPIO17 / D7
+#define TX_PIN D6							// Serial Transmit pin - GPIO16 / D6
+#define HW_UART_NUM 0				// Hardware UART
+#else // MP_XIAO_ESP32C6
 #define SERIAL_COMMUNICATION_CONTROL_PIN 33	// Transmission set pin
 #define RX_PIN 16							// Serial Receive pin
 #define TX_PIN 17							// Serial Transmit pin
-#endif
+#define HW_UART_NUM 2				// Hardware UART
+#endif // MP_XIAO_ESP32C6
+#endif // MP_ESP32
 
 // Ensure RS485 is quiet for this many millis before transmitting to help avoid collisions
 #define QUIET_MILLIS_BEFORE_TX 20
@@ -67,6 +75,7 @@ class RS485Handler
 #endif // DEBUG_OUTPUT_TX_RX
 		uint16_t baudRate;
 		bool _rs485IsOnline;
+		char uartInfoString[OLED_CHARACTER_WIDTH];
 
 	protected:
 
@@ -82,6 +91,7 @@ class RS485Handler
 #endif // DEBUG_OVER_SERIAL || DEBUG_LEVEL2 || DEBUG_OUTPUT_TX_RX
 		void setBaudRate(unsigned long baudRate);
 		bool isRs485Online();
+		char *uartInfo();
 };
 
 

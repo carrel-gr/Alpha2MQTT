@@ -38,6 +38,12 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // Compiling for ESP8266 or ESP32?
 #define MP_ESP32
 //#define MP_ESP8266
+#define MP_XIAO_ESP32C6
+
+// WiFi parameters
+#ifdef MP_XIAO_ESP32C6
+#define WIFI_EXT_ANT LOW // Set to "HIGH" to use external (UFL) antenna, or "LOW" to use internal
+#endif // MP_XIAO_ESP32C6
 
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
 // Don't set this if using the ESP8266 OLED Shield 64x48 display.
@@ -46,7 +52,9 @@ Customise these options as per README.txt.  Please read README.txt before contin
 // If your OLED does have an RST pin, set this.
 // An OLED Shield compatible with an ESP8266 does have a RESET pin and it is linked to GPIO0 if using an ESP8266.
 // If you are using the same OLED Shield with an ESP32, by default for this project it is linked to GIO13.
-//#define OLED_HAS_RST_PIN
+#define OLED_RST_PIN -1    // No RST pin
+//#define OLED_RST_PIN 0
+//#define OLED_RST_PIN 13
 
 // Set this to true to set the "retain" flag when publishing to MQTT
 // "retain" is also a flag in mqttState.   This is AND-ed with that.
@@ -161,6 +169,14 @@ Customise these options as per README.txt.  Please read README.txt before contin
 /* Shouldn't need to change anything below this. */
 /*************************************************/
 
+#ifdef MP_XIAO_ESP32C6
+#ifndef MP_ESP32
+#define MP_ESP32
+#endif // ! MP_ESP32
+#define WIFI_ENABLE 3
+#define WIFI_ANT_CONFIG 16
+#endif // MP_XIAO_ESP32C6
+
 #if (!defined MP_ESP8266) && (!defined MP_ESP32)
 #error You must specify the microprocessor in use
 #endif
@@ -175,6 +191,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define SCREEN_WIDTH 64
 #define SCREEN_HEIGHT 48
 #endif // LARGE_DISPLAY
+#define SCREEN_ADDRESS 0x3C
 
 // Handled Registers as per 1.23 documentation
 // Network meter - configuration

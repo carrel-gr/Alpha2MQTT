@@ -1,11 +1,11 @@
 # Alpha2MQTT (A2M)
 ## A Home Assistant controller for AlphaESS solar and battery inverters.
 
-_**Credit!** This project is entirely derived from https://github.com/dxoverdy/Alpha2MQTT (original README is [here](README-orig.md))which is a really great bit of work.  My hardware is just some small tweaks on that project's hardware.  My software has changed a lot from that project, but at its core, this project is derived from that project and would not exist without that project. So HUGE credit and thanks._
+_**Credit!** This project is entirely derived from https://github.com/dxoverdy/Alpha2MQTT (original README is [here](README-orig.md)) which is a really great bit of work.  My hardware includes some tweaks and modernizations on that project's hardware.  My software has changed a lot from that project, but at its core, this project is derived from that project and would not exist without that project. So HUGE credit and thanks._
 
-**What is this?** This project is a controller that connects Home Assistant to an AlphaESS system via RS485 and uses MQTT discovery to set up a ready to go integration.  This is local control with NO cloud dependancy.  Once you plug-in and turn on this A2M hardware, your ESS will appear as a unique HA/MQTT device with HA entities ready to monitor and [control](#controlling-your-ess) your AlphaESS system.  No HA configuration is needed.  The entities are ready to be used by the Energy dashboard and can be included in other [dashboards](#dashboard-example) and [automations](#automation-examples).  This controller also provides [Operating Modes](#operating-modes) that enhance the AlphaESS functionality while making it simpler to [control](#controlling-your-ess).
+**What is this?** This project is a controller that connects Home Assistant to an AlphaESS system via RS485 and uses MQTT discovery to set up a ready to go integration.  This is local control with NO cloud dependancy.  Once you plug-in and turn on this A2M hardware, your ESS will appear as a unique HA/MQTT device with HA entities ready to monitor and [control](#controlling-your-ess) your AlphaESS system.  No HA configuration is needed.  The device and entities are ready to be used with all units, classes, fonts, unique IDs, availability and more.   Entities are ready to be used by the Energy dashboard and can be included in other [dashboards](#dashboard-example) and [automations](#automation-examples).  This controller also provides [Operating Modes](#operating-modes) that enhance the AlphaESS functionality while making it simpler to [control](#controlling-your-ess).
 
-**What's Different?** The big change is that rather than being a general purpose interface between MQTT and an AlphaESS system, this project is a controller specifically designed to work as a Home Assistant integration for your AlphaESS system.  It uses MQTT discovery to be plug-and-play so that no HA configuration is needed.  And it adds some "smart", real-time capabilities in the controller so that HA automation control is simplified.  This also incorporates several newer versions of the [AlphaESS specs](#alphaess-specs), and has enhancements/tweaks/fixes to WiFi and RS485 functionality.
+**What's Different?** The big change is that rather than being a general purpose interface between MQTT and the raw AlphaESS system data, this project is a controller specifically designed to work as a Home Assistant integration for your AlphaESS system.  It uses MQTT discovery to be plug-and-play so that no HA configuration is needed.  And it adds some "smart", real-time capabilities in the controller so that HA automation control is simplified.  This also incorporates several newer versions of the [AlphaESS specs](#alphaess-specs), and has enhancements/tweaks/fixes to WiFi and RS485 functionality.
 
 ![Alpha2MQTT](Pics/Dave_HW.jpg)
 
@@ -22,7 +22,7 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 
 ## Steps to get running.
 - Build the hardware.  (See [HARDWARE](#hardware) below)
-- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing).  For changes to Definitions.h you should follow the instructions in the file itself, as this file has changed a fair bit.
+- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing).  For changes to `Definitions.h` you should follow the instructions in the file itself, as this file has changed a fair bit.
 - Enable MQTT discovery in Home Assistant (if this isn't on already).
 - Plug in RS485 and power.  At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
 - (optional) Configure the HA Energy dashboard to use these new entities.  All the necessary entities are provided for grid, solar, and battery.
@@ -54,10 +54,26 @@ Alpha2MQTT honours 1.28 AlphaESS Modbus documentation.  The latest register list
 - [AlphaESS Register List](Pics/AlphaESS_Modbus_Protocol_V1.28.pdf)
 
 ### Hardware
-To build this hardware you need to follow the [original project instructions](README-orig.md#how-to-build).  While I originally started with an ESP8266, I switched to an ESP32 for better WiFi and I have only tested with the ESP32 for a while.  (However, the ESP8266 _should_ still work.)  I also went to a larger display.  This isn't necessary, but did help with debugging.  And I used a different MAX3485 part because I liked the form factor better.  If you use this, be sure to connect the EN pin.  Here are links to the parts I used.
-- [ESP 32](https://www.amazon.com/gp/product/B0CL5VGC8J)
-- [Display](https://www.amazon.com/gp/product/B09C5K91H7)
-- [MAX3485](https://www.amazon.com/gp/product/B09SYZ98KF)
+To build this hardware you should start with the [original project instructions](README-orig.md#how-to-build).  I originally started with an ESP8266, then I switched to an ESP32 for better WiFi and I have only tested with the ESP32 for a while.  (However, the ESP8266 _should_ still work.)  I also went to a larger display.  This isn't necessary, but did help with debugging.  And I used a different MAX3485 part because I liked the form factor better.  If you use this, be sure to connect the EN pin.  Finally I switched from a "generic" ESP32 to the Seeed XIAO ESP32C6 which is insanely small, has FAR better WiFi (including WiFi 6), and is quite cheap.  The XAIO ESP32C6 supports both an internal and external antennas (selectable via software).  I found the XAIO ESP32C6 internal antenna gave me a stronger signal than my older ESP32s with an external antenna.  (Select which antenna you are using in `Definitions.h`)
+
+Here are links to the parts I used.
+- XIAO ESP32C6 - [Seeed](https://www.seeedstudio.com/XIAO-Main-ESP32C6-2354.html), [amazon](https://www.amazon.com/gp/product/B0D2NKVB34)
+  - or generic ESP 32 - [amazon](https://www.amazon.com/gp/product/B0CL5VGC8J)
+- Display - [amazon](https://www.amazon.com/gp/product/B09C5K91H7)
+- MAX3485 - [amazon](https://www.amazon.com/gp/product/B09SYZ98KF)
+
+Device wiring:
+- Display GND -> XIAO ESP32C6 GND (Pin 13)
+- Display VCC -> XIAO ESP32C6 3.3V (Pin 12)
+- Display SCL -> XIAO ESP32C6 SCL (Pin 6)
+- Display SDA -> XIAO ESP32C6 SDA (Pin 5)
+- MAX3485 EN  -> XIAO ESP32C6 D8/GPIO19 (Pin 9)
+- MAX3485 VCC -> XIAO ESP32C6 3.3V (Pin 12)
+- MAX3485 RXD -> XIAO ESP32C6 TX (Pin 7)
+- MAX3485 TXD -> XIAO ESP32C6 RX (Pin 8)
+- MAX3485 GND -> XIAO ESP32C6 GND (Pin 13)
+- MAX3485 A   -> RJ45 (Pin 5)
+- MAX3485 B   -> RJ45 (Pin 4)
 
 ### Dashboard Example
 - I tied into the Home Assistant builtin Energy dashboard by simply editing its configuration and adding grid to/from, solar, battery to/from, and battery SOC.  Voila!
@@ -89,5 +105,5 @@ To build this hardware you need to follow the [original project instructions](RE
 - The WiFi code has been tweaked to better handle Multi-AP environments and low signal situations.
 - The RS485 code has been tweaked to better handle more than two peers on the RS485 bus.  While this situation is rare, I had to deal with it during development because my vendor provided control via RS485 as well.  So until I trusted my device to take over, I had to make both controllers coexist.  RS485 fully supports more than two peers.  However, the MAX3485 doesn't provide enough control to make this perfect.  But I was able to make it robust enough.  Also, MODBUS says there can be only one "master" and Alpha2MQTT and my vendor's device are both masters.  But again, it still works well enough.  And now that I trust this controller, I have disconnected the vendor's device.
 - The larger display support allows for easier debugging.  This really isn't needed for anything other than debugging.
-- There's a lot of debugging information available via MQTT and the large display.  Enabling the different DEBUG options in Definitions.h will add more rotating debug values on the screen and add new Diagnostic entities under the MQTT device.
+- There's a lot of debugging information available via MQTT and the large display.  Enabling the different DEBUG options in `Definitions.h` will add more rotating debug values on the screen and add new Diagnostic entities under the MQTT device.
 - The AlphaSniffer project is a quick and dirty RS485 sniffer that lets this hardware sniff the RS485 bus while some other master talks to your AlphaESS.  It streams the (somewhat parsed) output over TCP to a host.
