@@ -42,7 +42,7 @@ There are 5 control entities for controlling your ESS.  There is "**Op Mode**", 
 - "**Load Follow**": This is the same as the AlphaESS "Load Follow" except this also honors the "**SOC Target**" setting.  (Alpha says their "Load Follow" mode and their "Normal" modes are the same.)  This mode uses "**Charge Power**" and "**Discharge Power**" settings.  I don't personally use this mode in my automations.
 - "**Target SOC**": This will charge or discharge the ESS, as appropriate, to reach the "**SOC Target**".  This will use the "**Charge Power**" and "**Discharge Power**" settings.
 - "**Push To Grid**": This will push power to the grid until the "**SOC Target**" is reached.  It only uses the "**Push Power**" setting to determine the discharge power.  When PV is producing more than the house load, this pushes the excess PV power **plus** the "**Push Power**" amount to the grid.  When PV is producing less than the house load, then this pushes the "**Push Power**" amount to the grid.  The Alpha2MQTT controller dynamically adjusts the AlphaESS setting (without needing HA involvement) to achieve this.
-- "**PV Charge**": This will charge the ESS only from PV power that exceeds the house load.  This uses the "**SOC Target**" and "**Charge Power**" settings.  When PV power is less than the house load, the grid is used to supply the difference.  The ESS is charged only when PV power exceeds the house load.  If PV power exceeds the house load plus "**Charge Power**", or if the "**SOC Target**" is reached, then excess PV is pushed to the grid.
+- "**PV Charge**": This will charge the ESS only from PV power that exceeds the house load.  This uses the "**SOC Target**" and "**Charge Power**" settings.  When PV power is less than the house load, the grid is used to supply the remainder of the house load.  The ESS is charged only when PV power exceeds the house load.  If PV power exceeds the house load plus "**Charge Power**", or if the "**SOC Target**" is reached, then excess PV is pushed to the grid.
 - "**Max Charge**": This will charge the ESS from any source (PV or grid) as fast as it can until it is full.  Grid supplies the house load.  Excess PV is pushed to the grid.
 - "**No Charge**": This will not charge the ESS from any source, and will use the ESS for house loads when PV is less than the house load.  Excess PV is pushed to the grid.
 
@@ -69,8 +69,8 @@ Device wiring:
 - Display SDA -> XIAO ESP32C6 SDA (Pin 5)
 - MAX3485 EN  -> XIAO ESP32C6 D8/GPIO19 (Pin 9)
 - MAX3485 VCC -> XIAO ESP32C6 3.3V (Pin 12)
-- MAX3485 RXD -> XIAO ESP32C6 TX (Pin 7)
-- MAX3485 TXD -> XIAO ESP32C6 RX (Pin 8)
+- MAX3485 RXD -> XIAO ESP32C6 TX/D6/GPIO16 (Pin 7)
+- MAX3485 TXD -> XIAO ESP32C6 RX/D7/GPIO17 (Pin 8)
 - MAX3485 GND -> XIAO ESP32C6 GND (Pin 13)
 - MAX3485 A   -> RJ45 (Pin 5)
 - MAX3485 B   -> RJ45 (Pin 4)
