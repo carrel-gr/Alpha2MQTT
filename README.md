@@ -7,7 +7,7 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 
 **What's Different?** The big change is that rather than being a general purpose interface between MQTT and the raw AlphaESS system data, this project is a controller specifically designed to work as a Home Assistant integration for your AlphaESS system.  It uses MQTT discovery to be plug-and-play so that no HA configuration is needed.  And it adds some "smart", real-time capabilities in the controller so that HA automation control is simplified.  This also incorporates several newer versions of the [AlphaESS specs](#alphaess-specs), and has enhancements/tweaks/fixes to WiFi and RS485 functionality.
 
-![Alpha2MQTT](Pics/Dave_HW.jpg)
+![Alpha2MQTT](Pics/Dave_HW2.jpg)
 
 ### Supported AlphaESS devices are:
 - I have only tested this on a SMILE-SPB system.
@@ -22,7 +22,7 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 
 ## Steps to get running.
 - Build the hardware.  (See [HARDWARE](#hardware) below)
-- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing).  For changes to `Definitions.h` you should follow the instructions in the file itself, as this file has changed a fair bit.
+- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing) for setting up the software environment and compiling/loading.  Changes are needed in `Definitions.h` and you should follow the instructions in the file itself, as this file has changed a fair bit.
 - Enable MQTT discovery in Home Assistant (if this isn't on already).
 - Plug in RS485 and power.  At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
 - (optional) Configure the HA Energy dashboard to use these new entities.  All the necessary entities are provided for grid, solar, and battery.
