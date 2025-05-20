@@ -77,10 +77,12 @@ Device wiring:
 
 ### Dashboard Example
 - I tied into the Home Assistant builtin Energy dashboard by simply editing its configuration and adding grid to/from, solar, battery to/from, and battery SOC.  Voila!
-- Here is my ESS dashboard.  This was simple to make using the HA builtin visual editor. ([Here](Dave_Examples/Dave_ESS_Dashboard.yaml.txt) is the yaml.)  I used "energy-flow-card-plus" and "power-flow-card-plus" which are available through HACS.  In the middle section there are several entities that appear and disappear depending on the current Op Mode.
+- Here is my ESS dashboard.  This was simple to make using the HA builtin visual editor. ([Here](Dave_Examples/Dave_ESS_Dashboard.yaml.txt) is the yaml.)  I used the builtin"energy-distribution" card and "power-flow-card-plus" which is available through HACS.  In the middle section there are several entities that appear and disappear depending on the current Op Mode.
 ![ESS Dashboard](Pics/Dave_ESS_Dashboard.png)
 - Here is the same dashboard when the ESS is in a different Op Mode.  Note: The middle column has more entities showing in this Op Mode.
 ![ESS Dashboard](Pics/Dave_ESS_Dashboard_2.png)
+- The "Electricity Tariff" and "NWS Alerts" are the two entities on this page that don't come from Alpha2MQTT.  I include them here because my automations use these to help control the ESS.
+- You will also note that this dashboard also has views for an "Energy" (almost identical to HA's builtin Energy Dashboard) and "Power".  I won't bore you with pics, but the yaml has all the details.
 ### Automation Examples
 - ESS control - First off, I **highly** recommend that you have only ONE system controlling your ESS.  Alpha2MQTT can be used to simply monitor your ESS.  However, if you are using Alpha2MQTT to control your ESS, then be sure no other system is controlling it.  I allow the Alpha cloud to monitor my system, but it does NO control.
   - This control is a little complex, but not too bad.  Let me try to explain all the parts.
@@ -96,14 +98,14 @@ Device wiring:
 ### Tips/Hints/Suggestions
 - Only the "**Max Charge**" "Op Mode" will do cell balancing.  Other modes are fine to use, but every so often you should run a "**Max Charge**" to balance things out.
 - There are several Faults and Warnings entities for each of the system components, and each of them monitors multiple AlphaESS registers.  These entities are simple numbers, but they also have an attribute which provides more detail. Click on the entity, then click Attributes, and you will see which registers are monitored and which bits are set.
-- There is one entity ("**Register Number**") that allows you to view AlphaESS register values.  Enter a register number (in decimal, not hex) in this entity, and you will see the (formatted) value in "**Register Value**".  This is only intended for debugging.
+- There is one entity ("**Register Number**") that allows you to view the actual AlphaESS register values.  Enter a register number (in decimal, not hex) in this entity, and you will then see the (formatted) register value displayed in "**Register Value**".  This is only intended for debugging.
 
 ### Other Changes and Enhancements
 - Quite a few new registers have been added.  (See [Specs](#alphaess-specs) above.)
-- This uses an MQTT Last Will and Testament (LWT) along with 2 other statuses to set the availability of all of its entities.
-- This uses the MQTT retain flag along with other MQTT options to ensure as-graceful-as-possible handling of situations where this device, HA, or the MQTT broker might reboot or go offline.
+- This uses an MQTT Last Will and Testament (LWT) to set availability for all entities.  In addition some entities also use the RS485 status to set their availability.  And for others, even the grid status is used.
+- This uses the MQTT retain flag along with other MQTT options to ensure as-graceful-as-possible handling of situations where this device, HA, or the MQTT broker might reboot or go offline.  By default, HA is assumed to be the authority for knowing what state the ESS should be in.  If Alpha2MQTT reboots, HA will set the state upon reconnect.  However, this can be changed in `Definitions.h` so that the ESS is the authority and Alpha2MQTT will then tell HA what the state is.
 - The WiFi code has been tweaked to better handle Multi-AP environments and low signal situations.
-- The RS485 code has been tweaked to better handle more than two peers on the RS485 bus.  While this situation is rare, I had to deal with it during development because my vendor provided control via RS485 as well.  So until I trusted my device to take over, I had to make both controllers coexist.  RS485 fully supports more than two peers.  However, the MAX3485 doesn't provide enough control to make this perfect.  But I was able to make it robust enough.  Also, MODBUS says there can be only one "master" and Alpha2MQTT and my vendor's device are both masters.  But again, it still works well enough.  And now that I trust this controller, I have disconnected the vendor's device.
+- The RS485 code has been tweaked to better handle more than two peers on the RS485 bus.  While this situation is rare, I had to deal with it during development because my vendor provided control via RS485 as well.  So until I trusted my device to take over, I had to make both controllers coexist.  RS485 fully supports more than two peers.  However, the MAX3485 doesn't provide enough control to make this perfect.  But I was able to make it robust enough.  Also, MODBUS says there can be only one "master" and Alpha2MQTT and my vendor's device were both masters.  But again, it still works well enough.  And now that I trust this controller, I have disconnected the vendor's device.
 - The larger display support allows for easier debugging.  This really isn't needed for anything other than debugging.
 - There's a lot of debugging information available via MQTT and the large display.  Enabling the different DEBUG options in `Definitions.h` will add more rotating debug values on the screen and add new Diagnostic entities under the MQTT device.
 - The AlphaSniffer project is a quick and dirty RS485 sniffer that lets this hardware sniff the RS485 bus while some other master talks to your AlphaESS.  It streams the (somewhat parsed) output over TCP to a host.

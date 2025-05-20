@@ -6,48 +6,8 @@ views:
     sections:
       - type: grid
         cards:
-          - square: false
-            type: grid
-            cards:
-              - type: custom:energy-period-selector-plus
-                card_background: false
-                today_button: true
-                prev_next_buttons: true
-                today_button_type: icon
-                period_buttons:
-                  - day
-                  - week
-                  - month
-                  - year
-                compare_button_type: ''
-              - type: custom:energy-flow-card-plus
-                entities:
-                  battery:
-                    entity:
-                      consumption: sensor.a2m_al8002221090041_ess_energy_discharge
-                      production: sensor.a2m_al8002221090041_ess_energy_charge
-                    state_of_charge: sensor.a2m_al8002221090041_state_of_charge
-                  grid:
-                    entity:
-                      consumption: sensor.a2m_al8002221090041_grid_energy_from
-                      production: sensor.a2m_al8002221090041_grid_energy_to
-                  solar:
-                    entity: sensor.a2m_al8002221090041_solar_energy
-                    display_zero_state: true
-                  home: {}
-                clickable_entities: true
-                display_zero_lines: true
-                use_new_flow_rate_model: true
-                energy_date_selection: true
-                wh_decimals: 1
-                kwh_decimals: 2
-                min_flow_rate: 1
-                max_flow_rate: 6
-                max_expected_energy: 2000
-                min_expected_energy: 10
-                wh_kwh_threshold: 1000
-                title: Energy
-            columns: 1
+          - type: energy-distribution
+            title: Energy
           - square: false
             type: grid
             cards:
@@ -84,6 +44,12 @@ views:
                 transparency_zero_lines: 0
                 title: Power
             columns: 1
+          - show_name: true
+            show_icon: true
+            type: energy-grid-neutrality-gauge
+            title: Net consumed from the grid
+            view_layout:
+              position: sidebar
       - type: grid
         cards:
           - square: false
@@ -163,12 +129,31 @@ views:
                 state_color: true
                 name: Grid Connected
               - type: entity
+                entity: sensor.mar_east_electricity_tariff
+                state_color: true
+                name: Electricity Tariff
+              - type: entity
                 entity: sensor.nws_alerts
                 state_color: true
+                name: NWS Alerts
             title: System Status
             columns: 1
       - type: grid
         cards:
+          - type: energy-date-selection
+          - square: false
+            type: grid
+            cards:
+              - type: entities
+                entities:
+                  - entity: input_boolean.ess_immediate_charge
+                  - entity: input_boolean.ingore_nws
+                state_color: true
+            title: Overrides
+            grid_options:
+              columns: 12
+              rows: auto
+            columns: 1
           - square: false
             type: grid
             cards:
@@ -202,15 +187,184 @@ views:
                     name: Warnings
                 title: Batteries
                 state_color: true
-              - type: entities
-                entities:
-                  - entity: sensor.solar_5_1min
-                    name: Solar (Vue)
-                  - entity: sensor.al8002221090041_instantaneous_generation
-                    name: Solar (Alpha)
-                  - entity: sensor.a2m_al8002221090041_solar_power
-                    name: Solar (A2M)
-                state_color: true
-                title: Solar Comparison
             columns: 1
             title: Diagnostics
+  - type: sidebar
+    path: energy
+    title: Energy
+    cards:
+      - type: energy-usage-graph
+        title: Electricity usage
+      - type: energy-solar-graph
+        title: Solar production
+      - type: energy-gas-graph
+        title: Gas consumption
+      - type: energy-water-graph
+        title: Water consumption
+      - type: energy-sources-table
+        title: Sources
+      - type: energy-devices-detail-graph
+        title: individual devices detail usage
+      - type: energy-devices-graph
+        title: individual devices total usage
+      - show_name: true
+        show_icon: true
+        type: energy-date-selection
+        view_layout:
+          position: sidebar
+      - show_name: true
+        show_icon: true
+        type: energy-distribution
+        view_layout:
+          position: sidebar
+      - type: entities
+        entities:
+          - entity: sensor.a2m_al8002221090041_state_of_charge
+            name: State of Charge
+        state_color: true
+        view_layout:
+          position: sidebar
+      - show_name: true
+        show_icon: true
+        type: energy-grid-neutrality-gauge
+        title: Net consumed from the grid
+        view_layout:
+          position: sidebar
+      - show_name: true
+        show_icon: true
+        type: energy-solar-consumed-gauge
+        title: Self-consumed solar energy
+        view_layout:
+          position: sidebar
+      - show_name: true
+        show_icon: true
+        type: energy-self-sufficiency-gauge
+        title: Self-sufficiency
+        view_layout:
+          position: sidebar
+  - title: Power
+    type: panel
+    cards:
+      - square: false
+        type: grid
+        cards:
+          - type: energy-date-selection
+          - square: false
+            type: grid
+            cards:
+              - type: custom:power-flow-card-plus
+                entities:
+                  battery:
+                    entity: sensor.a2m_al8002221090041_ess_power
+                    state_of_charge: sensor.a2m_al8002221090041_state_of_charge
+                  grid:
+                    entity: sensor.a2m_al8002221090041_grid_power
+                    secondary_info: {}
+                  solar:
+                    entity: sensor.a2m_al8002221090041_solar_power
+                    display_zero_state: true
+                    secondary_info: {}
+                  home:
+                    secondary_info: {}
+                clickable_entities: true
+                display_zero_lines:
+                  mode: show
+                  transparency: 50
+                  grey_color:
+                    - 189
+                    - 189
+                    - 189
+                use_new_flow_rate_model: true
+                w_decimals: 0
+                kw_decimals: 2
+                min_flow_rate: 0.75
+                max_flow_rate: 6
+                max_expected_power: 2000
+                min_expected_power: 0.01
+                watt_threshold: 1000
+                transparency_zero_lines: 0
+            columns: 1
+          - type: custom:tdv-bar-card
+            rangemax: 1200
+            allownegativescale: 1
+            scaletype: linear
+            colors:
+              bar: '#ebc934'
+            entities:
+              - entity: sensor.a2m_al8002221090041_grid_power
+                name: Grid
+                barcolor: '#3495eb'
+                icon: mdi:transmission-tower
+              - entity: sensor.a2m_al8002221090041_solar_power
+                name: Solar
+                barcolor: '#eb7d34'
+              - entity: sensor.a2m_al8002221090041_ess_power
+                name: Battery
+                barcolor: '#eb34d5'
+              - entity: sensor.total_home_power
+                name: Home
+                icon: mdi:home-lightning-bolt
+                barcolor: '#34ebc0'
+              - entity: sensor.evse_6_1min
+                icon: mdi:ev-station
+              - entity: sensor.utility_room_rack_6_1min
+                icon: mdi:server
+              - entity: sensor.dryer_97_1min
+                icon: mdi:tumble-dryer
+              - entity: sensor.9b_washer_13_1min
+                icon: mdi:washing-machine
+              - entity: sensor.dishwasher_power_minute_average
+                icon: mdi:dishwasher
+              - entity: sensor.oven_power_minute_average
+                icon: mdi:stove
+              - entity: sensor.warming_drawer_power_minute_average
+                icon: mdi:toaster-oven
+              - entity: sensor.11t_microwave_12_1min
+                icon: mdi:microwave
+              - entity: sensor.fridge_power_minute_average
+                icon: mdi:fridge
+              - entity: sensor.wine_fridge_14_1min
+                icon: mdi:fridge-industrial
+              - entity: sensor.heater_power_minute_average
+                icon: mdi:thermometer
+              - entity: sensor.family_room_heat_16_1min
+                icon: mdi:thermometer
+              - entity: sensor.olivia_heat_2_1min
+                icon: mdi:thermometer
+              - entity: sensor.quentin_heat_15_1min
+                icon: mdi:thermometer
+              - entity: sensor.down_bath_heat_5_1min
+                icon: mdi:thermometer
+              - entity: sensor.septic_10_1min
+                icon: mdi:water-pump
+              - entity: sensor.pond_pump_power_minute_average
+                icon: mdi:water-pump
+              - entity: sensor.office_mbr_tv_guest_bath_outlets_power_minute_average
+                name: Office plus
+                icon: mdi:laptop-account
+              - entity: sensor.kitchen_lights_plugs_1min
+                name: Kitchen L&P
+                icon: mdi:lightbulb-multiple
+              - entity: sensor.upstairs_se_lights_plugs_1min
+                name: Upstairs SE L&P
+                icon: mdi:lightbulb-multiple
+              - entity: >-
+                  sensor.mbr_master_bath_lights_garage_outlets_power_minute_average
+                name: MBR, Garage L&P
+                icon: mdi:lightbulb-multiple
+              - entity: sensor.downstairs_lights_plugs_1min
+                name: Downstairs L&P
+                icon: mdi:lightbulb-multiple
+              - entity: sensor.misc_lights_plugs_1min
+                name: Misc L&P
+                icon: mdi:lightbulb-multiple
+              - entity: sensor.main_balance_1min
+                name: Main Balance
+                icon: mdi:electric-switch
+              - entity: sensor.downstairs_panel_balance_1min
+                name: Downstairs Balance
+                icon: mdi:electric-switch
+              - entity: sensor.upstairs_balance_power_minute_average
+                name: Upstairs Balance
+                icon: mdi:electric-switch
+        columns: 1
