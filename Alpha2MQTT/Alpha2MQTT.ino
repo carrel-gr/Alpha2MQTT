@@ -22,12 +22,17 @@ First, go and customise options at the top of Definitions.h!
 #include <Arduino.h>
 #if defined MP_ESP8266
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #elif defined MP_ESP32
 #include <WiFi.h>
+#include <WebServer.h>
 #ifndef MP_XIAO_ESP32C6
 #define LED_BUILTIN 2
 #endif // ! MP_XIAO_ESP32C6
 #endif
+#include <DNSServer.h>
+#include <WiFiManager.h>
+#include <Preferences.h>
 #include <PubSubClient.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -37,7 +42,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.65";
+char _version[6] = "v2.66";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -71,6 +76,21 @@ char _oledOperatingIndicator = '*';
 char _oledLine2[OLED_CHARACTER_WIDTH] = "";
 char _oledLine3[OLED_CHARACTER_WIDTH] = "";
 char _oledLine4[OLED_CHARACTER_WIDTH] = "";
+
+// Config handling
+struct Config {
+	String wifiSSID;
+	String wifiPass;
+	String mqttSrvr;
+	int mqttPort;
+	String mqttUser;
+	String mqttPass;
+#ifdef MP_XIAO_ESP32C6
+	bool extAntenna;
+#endif // MP_XIAO_ESP32C6
+};
+
+Config config;
 
 // RS485 and AlphaESS functionality are packed up into classes
 // to keep separate from the main program logic.
@@ -220,6 +240,7 @@ void setup()
 	char baudRateString[10] = "";
 	int baudRateIterator = -1;
 	char *uartDebug;
+	Preferences preferences;
 
 #if defined(DEBUG_OVER_SERIAL) || defined(DEBUG_LEVEL2) || defined(DEBUG_OUTPUT_TX_RX)
 	// Set up serial for debugging using an appropriate baud rate
@@ -231,6 +252,12 @@ void setup()
 	// Configure LED for output
 	pinMode(LED_BUILTIN, OUTPUT);
 	
+#ifdef BUTTON_PIN
+	// Configure the user push button
+	pinMode(BUTTON_PIN, INPUT);
+//	pinMode(BUTTON_PIN, INPUT_PULLUP);
+#endif // BUTTON_PIN
+
 	// Wire.setClock(10000);
 
 	// Display time
@@ -247,11 +274,37 @@ void setup()
 	Serial.println(_debugOutput);
 #endif
 
+	preferences.begin(DEVICE_NAME, true); // RO
+	config.wifiSSID = preferences.getString("WiFi_SSID", "");
+	config.wifiPass = preferences.getString("WiFi_Password", "");
+	config.mqttSrvr = preferences.getString("MQTT_Server", "");
+	config.mqttPort = preferences.getInt("MQTT_Port", 0);
+	config.mqttUser = preferences.getString("MQTT_Username", "");
+	config.mqttPass = preferences.getString("MQTT_Password", "");
+#ifdef MP_XIAO_ESP32C6
+	config.extAntenna = preferences.getBool("Ext_Antenna", false);
+#endif // MP_XIAO_ESP32C6
+	preferences.end();
+
+	// If config is not setup, then enter config mode
+	if ((config.wifiSSID == "") ||
+	    (config.wifiPass == "") ||
+	    (config.mqttSrvr == "") ||
+	    (config.mqttPort == 0) ||
+	    (config.mqttUser == "") ||
+	    (config.mqttPass == "")) {
+		configLoop();
+		ESP.restart();
+	} else {
+		updateOLED(false, "Found", "config", _version);
+		delay(250);
+	}
+
 	// Configure WIFI
 	setupWifi(true);
 
 	// Configure MQTT to the address and port specified above
-	_mqtt.setServer(MQTT_SERVER, MQTT_PORT);
+	_mqtt.setServer(config.mqttSrvr.c_str(), config.mqttPort);
 #ifdef DEBUG_OVER_SERIAL
 	sprintf(_debugOutput, "About to request buffer");
 	Serial.println(_debugOutput);
@@ -374,8 +427,109 @@ void setup()
 	updateOLED(false, "", "", _version);
 }
 
+void
+configLoop(void)
+{
+	bool flip = false;
 
+#ifdef DEBUG_OVER_SERIAL
+	Serial.println("Configuration is not set.");
+#endif
 
+	// If we have a BUTTON_PIN then only start web config when it has been pressed.
+#ifdef BUTTON_PIN
+	for (int i = 0; ; i++) {
+		char line4[OLED_CHARACTER_WIDTH];
+
+		snprintf(line4, sizeof(line4), "%d", i);
+		if (i % 10 == 0) flip = !flip;
+		if (flip) {
+			updateOLED(false, "Config", "not set.", line4);
+		} else {
+			updateOLED(false, "Push", "button.", line4);
+		}
+
+		// Read button state
+		if (digitalRead(BUTTON_PIN) == LOW) {
+			break;
+		}
+
+		delay(300);
+	}
+#endif // BUTTON_PIN
+	configHandler();
+}
+
+void
+configHandler(void)
+{
+	Preferences preferences;
+	WiFiManager wifiManager;
+
+	wifiManager.setBreakAfterConfig(true);
+	wifiManager.setTitle(DEVICE_NAME);
+	wifiManager.setShowInfoUpdate(false);
+	WiFiManagerParameter p_lineBreak_text("<p>MQTT settings:</p>");
+	WiFiManagerParameter custom_mqtt_server("server", "MQTT server", "", 40);
+	WiFiManagerParameter custom_mqtt_port("port", "MQTT port", "1883", 6);
+	WiFiManagerParameter custom_mqtt_user("user", "MQTT user", "", 32);
+	WiFiManagerParameter custom_mqtt_pass("mpass", "MQTT password", "", 32);
+#ifdef MP_XIAO_ESP32C6
+	const char _customHtml_checkbox[] = "type=\"checkbox\"";
+	WiFiManagerParameter custom_ext_ant("ext_antenna", "Use external WiFi antenna\n", "T", 2, _customHtml_checkbox, WFM_LABEL_AFTER);
+#endif // MP_XIAO_ESP32C6
+
+	WiFi.disconnect(true, true); // Disconnect and erase saved WiFi config
+	updateOLED(false, "Web", "config", "active");
+
+#ifdef MP_XIAO_ESP32C6
+	wifiManager.addParameter(&custom_ext_ant);
+#endif // MP_XIAO_ESP32C6
+	wifiManager.addParameter(&p_lineBreak_text);
+	wifiManager.addParameter(&custom_mqtt_server);
+	wifiManager.addParameter(&custom_mqtt_port);
+	wifiManager.addParameter(&custom_mqtt_user);
+	wifiManager.addParameter(&custom_mqtt_pass);
+
+	if (!wifiManager.startConfigPortal(DEVICE_NAME)) {
+#ifdef DEBUG_OVER_SERIAL
+		Serial.println("failed to connect and hit timeout");
+#endif
+		updateOLED(false, "Web", "config", "failed");
+		delay(3000);
+		//reset and try again
+		ESP.restart();
+	}
+
+	//if you get here you have connected to the WiFi
+#ifdef DEBUG_OVER_SERIAL
+	Serial.println("connected...yeey :)");
+#endif
+	updateOLED(false, "Web", "config", "succeeded");
+
+	preferences.begin(DEVICE_NAME, false); // RW
+	preferences.putString("WiFi_SSID", wifiManager.getWiFiSSID());
+	preferences.putString("WiFi_Password", wifiManager.getWiFiPass());
+	preferences.putString("MQTT_Server", custom_mqtt_server.getValue());
+	{
+		int port = strtol(custom_mqtt_port.getValue(), NULL, 10);
+		if (port < 0 || port > SHRT_MAX)
+			port = 0;
+		preferences.putInt("MQTT_Port", port);
+	}
+	preferences.putString("MQTT_Username", custom_mqtt_user.getValue());
+	preferences.putString("MQTT_Password", custom_mqtt_pass.getValue());
+#ifdef MP_XIAO_ESP32C6
+	{
+		const char *extAnt = custom_ext_ant.getValue();
+		preferences.putBool("Ext_Antenna", extAnt[0] == 'T');
+	}
+#endif // MP_XIAO_ESP32C6
+	preferences.end();
+
+	delay(1000);
+	ESP.restart();
+}
 
 /*
  * loop
@@ -388,6 +542,13 @@ loop()
 #ifdef FORCE_RESTART_HOURS
 	static unsigned long autoReboot = 0;
 #endif
+
+#ifdef BUTTON_PIN
+	// Read button state
+	if (digitalRead(BUTTON_PIN) == LOW) {
+		configHandler();
+	}
+#endif // BUTTON_PIN
 
 	// Refresh LED Screen, will cause the status asterisk to flicker
 	updateOLED(true, "", "", "");
@@ -491,7 +652,7 @@ setupWifi(bool initialConnect)
 		digitalWrite(WIFI_ENABLE, LOW);
 		delay(100);
 		pinMode(WIFI_ANT_CONFIG, OUTPUT);
-		digitalWrite(WIFI_ANT_CONFIG, WIFI_EXT_ANT);
+		digitalWrite(WIFI_ANT_CONFIG, config.extAntenna ? HIGH : LOW);
 #endif // MP_XIAO_ESP32C6
 #ifdef DEBUG_WIFI
 	} else {
@@ -507,6 +668,12 @@ setupWifi(bool initialConnect)
 		if (tries == 5000) {
 			ESP.restart();
 		}
+#ifdef BUTTON_PIN
+		// Read button state
+		if (digitalRead(BUTTON_PIN) == LOW) {
+			configHandler();
+		}
+#endif // BUTTON_PIN
 
 		if (tries % 50 == 0) {
 			WiFi.disconnect();
@@ -521,7 +688,7 @@ setupWifi(bool initialConnect)
 			WiFi.hostname(DEVICE_NAME);
 
 			// And connect to the details defined at the top
-			WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+			WiFi.begin(config.wifiSSID.c_str(), config.wifiPass.c_str());
 
 #if defined MP_ESP8266
 			wifiPower -= WIFI_POWER_DECREMENT;
@@ -1106,6 +1273,12 @@ mqttReconnect(void)
 		_mqtt.disconnect();		// Just in case.
 		delay(200);
 
+#ifdef BUTTON_PIN
+		// Read button state
+		if (digitalRead(BUTTON_PIN) == LOW) {
+			configHandler();
+		}
+#endif // BUTTON_PIN
 		if (WiFi.status() != WL_CONNECTED) {
 			setupWifi(false);
 		}
@@ -1119,7 +1292,7 @@ mqttReconnect(void)
 		delay(100);
 
 		// Attempt to connect
-		if (_mqtt.connect(haUniqueId, MQTT_USERNAME, MQTT_PASSWORD, statusTopic, 0, true,
+		if (_mqtt.connect(haUniqueId, config.mqttUser.c_str(), config.mqttPass.c_str(), statusTopic, 0, true,
 				  "{ \"a2mStatus\": \"offline\", \"rs485Status\": \"unavailable\", \"gridStatus\": \"unavailable\" }")) {
 			int numberOfEntities = sizeof(_mqttAllEntities) / sizeof(struct mqttState);
 #ifdef DEBUG_OVER_SERIAL

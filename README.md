@@ -3,9 +3,11 @@
 
 _**Credit!** This project is entirely derived from https://github.com/dxoverdy/Alpha2MQTT (original README is [here](README-orig.md)) which is a really great bit of work.  My hardware includes some tweaks and modernizations on that project's hardware.  My software has changed a lot from that project, but at its core, this project is derived from that project and would not exist without that project. So HUGE credit and thanks._
 
-**What is this?** This project is a controller that connects Home Assistant to an AlphaESS system via RS485 and uses MQTT discovery to set up a ready to go integration.  This is local control with NO cloud dependancy.  Once you plug-in and turn on this A2M hardware, your ESS will appear as a unique HA/MQTT device with HA entities ready to monitor and [control](#controlling-your-ess) your AlphaESS system.  No HA configuration is needed.  The device and entities are ready to be used with all units, classes, fonts, unique IDs, availability and more.   Entities are ready to be used by the Energy dashboard and can be included in other [dashboards](#dashboard-example) and [automations](#automation-examples).  This controller also provides [Operating Modes](#operating-modes) that enhance the AlphaESS functionality while making it simpler to [control](#controlling-your-ess).
+**What is this?** This project is a controller (a small hardware device) that connects Home Assistant to an AlphaESS system via RS485 and uses MQTT discovery to set up a ready to go integration.  This is local control with NO cloud dependancy.  Once you plug-in and turn on this A2M hardware, your ESS will appear as a unique HA/MQTT device with HA entities ready to monitor and [control](#controlling-your-ess) your AlphaESS system.  No HA configuration is needed.  The HA device and HA entities are ready to be used with all units, classes, icons, unique IDs, and more and provides up-to-date availability status of each entity.   Entities are ready to be used by the Energy dashboard and can be included in other [dashboards](#dashboard-example) and [automations](#automation-examples).  This controller also provides [Operating Modes](#operating-modes) that enhance the AlphaESS functionality while making it simpler to [control](#controlling-your-ess).
 
 **What's Different?** The big change is that rather than being a general purpose interface between MQTT and the raw AlphaESS system data, this project is a controller specifically designed to work as a Home Assistant integration for your AlphaESS system.  It uses MQTT discovery to be plug-and-play so that no HA configuration is needed.  And it adds some "smart", real-time capabilities in the controller so that HA automation control is simplified.  This also incorporates several newer versions of the [AlphaESS specs](#alphaess-specs), and has enhancements/tweaks/fixes to WiFi and RS485 functionality.
+
+The configuration (WiFi and MQTT settings) of this hardware itself is now done via a captive portal web interface.  It no longer requires hard coding these values in `Definitions.h`.  The web configurations only needs to be done once, and then the values are saved in flash.  See the [configuration](#configuring-wifi-and-mqtt) section for details.
 
 ![Alpha2MQTT](Pics/Dave_HW2.jpg)
 
@@ -22,17 +24,21 @@ _**Credit!** This project is entirely derived from https://github.com/dxoverdy/A
 
 ## Steps to get running.
 - Build the hardware.  (See [HARDWARE](#hardware) below)
-- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing) for setting up the software environment and compiling/loading.  Changes are needed in `Definitions.h` and you should follow the instructions in the file itself, as this file has changed a fair bit.
+- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing) for setting up the software environment and compiling/loading.  Few, if any, changes are now needed in `Definitions.h` and you should follow the instructions in the file itself.  (Do not follow the original README instructions for modifying `Definitions.h`.)  Only a small number of hardware details *may* need to be changed in the top section of `Definitions.h`.
 - Enable MQTT discovery in Home Assistant (if this isn't on already).
-- Plug in RS485 and power.  At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
+- Plug in RS485 and power (USB).  Then [configure WiFi and MQTT](#configuring-wifi-and-mqtt).
+- At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
 - (optional) Configure the HA Energy dashboard to use these new entities.  All the necessary entities are provided for grid, solar, and battery.
 - (optional) Create an ESS dashboard.  (See [Dashboard Example](#dashboard-example) below.)
 - (optional) Create ESS automations to control the ESS.  (See [Automations Example](#automation-examples) below.)
 
 ## More Details
+### Configuring WiFi and MQTT
+Before this device can do anything, it must be given basic configuration.  It needs to know your WiFi SSID and password, and your MQTT server details (IP, port, username, and password).  These details used to be hardcoded in `Definitions.h` but are now configured via a captive portal web interface and saved in flash.  There are two ways to start the configuration portal:  Button press or "as needed".  The button press is preferred as it is more secure, but this is only available when a button is defined.  (A button is currently only defined for the XIAO ESP32C6 which uses the "BOOT" button.)  Simply press the button to enter config mode, and you can re-configure any time by pressing it again.  When no button is defined, the "as needed" method is used and it simply starts the portal at bootup if the configuration is incomplete.  Once configuration mode starts the hardware will create its own WiFi network (SSID="Alpha2MQTT" and no password).  Join that network and you will be taken to the captive web portal where you can enter the configuration details.  Once you are done, the hardware will reboot and should join your WiFi network and talk to your MQTT server.
+
 ### What you will see
 - Once your Alpha2MQTT device is working, in Home Assistant go to Settings->Devices & Services->Integrations->MQTT->devices
-- In this list is your new Alpha2MQTT device which starts with "A2M" and ends with your serial number.  In this image it is the top entry. (The 2nd entry is my dummy testing device which you won't see.)
+- In this list is your new Alpha2MQTT device which starts with "A2M" and ends with your AlphaESS serial number.  In this image it is the top entry. (The 2nd entry is my dummy testing device which you won't see.)
 ![MQTT Devices](Pics/Dave_MQTT_Devices.png)
 - Now click on your device and you'll see this, which is every entity that is provided for your device:
 ![MQTT A2M](Pics/Dave_MQTT_A2M.png)

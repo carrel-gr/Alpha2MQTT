@@ -25,25 +25,10 @@ Customise these options as per README.txt.  Please read README.txt before contin
 /* Start customizations here.                    */
 /*************************************************/
 
-// Update with your Wifi details
-#define WIFI_SSID		"SSID"
-#define WIFI_PASSWORD	"PASS"
-
-// Update with your MQTT Broker details
-#define MQTT_SERVER	"192.168.197.98"
-#define MQTT_PORT	1883
-#define MQTT_USERNAME	"Alpha"			// Empty string for none.
-#define MQTT_PASSWORD	"RainMan7"
-
 // Compiling for ESP8266 or ESP32?
 #define MP_ESP32
 //#define MP_ESP8266
 #define MP_XIAO_ESP32C6
-
-// WiFi parameters
-#ifdef MP_XIAO_ESP32C6
-#define WIFI_EXT_ANT LOW // Set to "HIGH" to use external (UFL) antenna, or "LOW" to use internal
-#endif // MP_XIAO_ESP32C6
 
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
 // Don't set this if using the ESP8266 OLED Shield 64x48 display.
@@ -169,12 +154,12 @@ Customise these options as per README.txt.  Please read README.txt before contin
 /* Shouldn't need to change anything below this. */
 /*************************************************/
 
-#ifdef MP_XIAO_ESP32C6
-#ifndef MP_ESP32
+#if defined MP_XIAO_ESP32C6 && ! defined MP_ESP32
 #define MP_ESP32
-#endif // ! MP_ESP32
-#define WIFI_ENABLE 3
-#define WIFI_ANT_CONFIG 16
+#endif // MP_XIAO_ESP32C6 && ! MP_ESP32
+
+#ifdef MP_XIAO_ESP32C6
+#define BUTTON_PIN 9 // BOOT/GPIO9
 #endif // MP_XIAO_ESP32C6
 
 #if (!defined MP_ESP8266) && (!defined MP_ESP32)
