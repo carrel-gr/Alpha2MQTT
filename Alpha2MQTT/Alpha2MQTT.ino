@@ -42,7 +42,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.66";
+char _version[6] = "v2.67";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -191,11 +191,11 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityBatCap,             "Battery_Capacity",     mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityBatTemp,            "Battery_Temp",         mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassTemp },
 	{ mqttEntityId::entityInverterTemp,       "Inverter_Temp",        mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassTemp },
-	{ mqttEntityId::entityBatFaults,          "Battery_Faults",       mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
-	{ mqttEntityId::entityBatWarnings,        "Battery_Warnings",     mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
-	{ mqttEntityId::entityInverterFaults,     "Inverter_Faults",      mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
-	{ mqttEntityId::entityInverterWarnings,   "Inverter_Warnings",    mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
-	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::freqFiveMin, false, true,  homeAssistantClass::haClassNumber },
+	{ mqttEntityId::entityBatFaults,          "Battery_Faults",       mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
+	{ mqttEntityId::entityBatWarnings,        "Battery_Warnings",     mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
+	{ mqttEntityId::entityInverterFaults,     "Inverter_Faults",      mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
+	{ mqttEntityId::entityInverterWarnings,   "Inverter_Warnings",    mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
+	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
 	{ mqttEntityId::entityInverterMode,       "Inverter_Mode",        mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::freqOneDay,  false, false, homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::freqOneMin,  true,  false, homeAssistantClass::haClassBox },
@@ -2212,7 +2212,9 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		sprintf(stateAddition, ", \"icon\": \"mdi:solar-power-variant-outline\"");
 		break;
 	case mqttEntityId::entityFrequency:
-		sprintf(stateAddition, ", \"icon\": \"mdi:sine-wave\"");
+		snprintf(stateAddition, sizeof(stateAddition),
+			 ", \"icon\": \"mdi:sine-wave\""
+			 ", \"suggested_display_precision\": 2");
 		break;
 	case mqttEntityId::entityGridPwr:
 		sprintf(stateAddition, ", \"icon\": \"mdi:transmission-tower\"");
@@ -2349,7 +2351,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entitySystemFaults:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\""
-			", \"value_template\": \"{{ value_json.numEvents | default(\\\"\\\") }}\""
+			", \"value_template\": \"{{ \\\"OK\\\" if value_json.numEvents == 0 else \\\"Problem\\\" }}\""
 			", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
 			haUniqueId, singleEntity->mqttName,
 			haUniqueId, singleEntity->mqttName);
