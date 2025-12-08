@@ -42,7 +42,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.67";
+char _version[6] = "v2.68";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -301,6 +301,13 @@ void setup()
 	}
 
 	// Configure WIFI
+#ifdef MP_XIAO_ESP32C6
+	pinMode(WIFI_ENABLE, OUTPUT);
+	digitalWrite(WIFI_ENABLE, LOW);
+	delay(100);
+	pinMode(WIFI_ANT_CONFIG, OUTPUT);
+	digitalWrite(WIFI_ANT_CONFIG, config.extAntenna ? HIGH : LOW);
+#endif // MP_XIAO_ESP32C6
 	setupWifi(true);
 
 	// Configure MQTT to the address and port specified above
@@ -638,27 +645,17 @@ setupWifi(bool initialConnect)
 	// We start by connecting to a WiFi network
 #ifdef DEBUG_OVER_SERIAL
 	if (initialConnect) {
-		sprintf(_debugOutput, "Connecting to %s", WIFI_SSID);
+		sprintf(_debugOutput, "Connecting to %s", config.wifiSSID.c_str());
 	} else {
-		sprintf(_debugOutput, "Reconnect to %s", WIFI_SSID);
+		sprintf(_debugOutput, "Reconnect to %s", config.wifiSSID.c_str());
 	}
 	Serial.println(_debugOutput);
 #endif
-	if (initialConnect) {
-		WiFi.disconnect(); // If it auto-started, restart it our way.
-		delay(100);
-#ifdef MP_XIAO_ESP32C6
-		pinMode(WIFI_ENABLE, OUTPUT);
-		digitalWrite(WIFI_ENABLE, LOW);
-		delay(100);
-		pinMode(WIFI_ANT_CONFIG, OUTPUT);
-		digitalWrite(WIFI_ANT_CONFIG, config.extAntenna ? HIGH : LOW);
-#endif // MP_XIAO_ESP32C6
 #ifdef DEBUG_WIFI
-	} else {
+	if (!initialConnect) {
 		wifiReconnects++;
-#endif // DEBUG_WIFI
 	}
+#endif // DEBUG_WIFI
 
 	// And continually try to connect to WiFi.
 	// If it doesn't, the device will just wait here before continuing
@@ -690,41 +687,43 @@ setupWifi(bool initialConnect)
 			// And connect to the details defined at the top
 			WiFi.begin(config.wifiSSID.c_str(), config.wifiPass.c_str());
 
+			if (tries != 0) { // Don't change/set power first time through
 #if defined MP_ESP8266
-			wifiPower -= WIFI_POWER_DECREMENT;
-			if (wifiPower < WIFI_POWER_MIN) {
-				wifiPower = WIFI_POWER_MAX;
-			}
-			WiFi.setOutputPower(wifiPower);
-			snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
+				wifiPower -= WIFI_POWER_DECREMENT;
+				if (wifiPower < WIFI_POWER_MIN) {
+					wifiPower = WIFI_POWER_MAX;
+				}
+				WiFi.setOutputPower(wifiPower);
+				snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
 #else
-			switch (wifiPower) {
-			case WIFI_POWER_19_5dBm:
-				wifiPower = WIFI_POWER_19dBm;
-				break;
-			case WIFI_POWER_19dBm:
-				wifiPower = WIFI_POWER_18_5dBm;
-				break;
-			case WIFI_POWER_18_5dBm:
-				wifiPower = WIFI_POWER_17dBm;
-				break;
-			case WIFI_POWER_17dBm:
-				wifiPower = WIFI_POWER_15dBm;
-				break;
-			case WIFI_POWER_15dBm:
-				wifiPower = WIFI_POWER_13dBm;
-				break;
-			case WIFI_POWER_13dBm:
-				wifiPower = WIFI_POWER_11dBm;
-				break;
-			case WIFI_POWER_11dBm:
-			default:
-				wifiPower = WIFI_POWER_19_5dBm;
-				break;
-			}
-			WiFi.setTxPower(wifiPower);
-			snprintf(line4, sizeof(line4), "TX: %0.01fdBm", (int)wifiPower / 4.0f);
+				switch (wifiPower) {
+				case WIFI_POWER_19_5dBm:
+					wifiPower = WIFI_POWER_19dBm;
+					break;
+				case WIFI_POWER_19dBm:
+					wifiPower = WIFI_POWER_18_5dBm;
+					break;
+				case WIFI_POWER_18_5dBm:
+					wifiPower = WIFI_POWER_17dBm;
+					break;
+				case WIFI_POWER_17dBm:
+					wifiPower = WIFI_POWER_15dBm;
+					break;
+				case WIFI_POWER_15dBm:
+					wifiPower = WIFI_POWER_13dBm;
+					break;
+				case WIFI_POWER_13dBm:
+					wifiPower = WIFI_POWER_11dBm;
+					break;
+				case WIFI_POWER_11dBm:
+				default:
+					wifiPower = WIFI_POWER_19_5dBm;
+					break;
+				}
+				WiFi.setTxPower(wifiPower);
+				snprintf(line4, sizeof(line4), "TX: %0.01fdBm", (int)wifiPower / 4.0f);
 #endif
+			}
 		}
 
 		if (initialConnect) {
@@ -817,14 +816,14 @@ updateOLED(bool justStatus, const char* line2, const char* line3, const char* li
 		int8_t rssi = WiFi.RSSI();
 		// There's 20 characters we can play with, width wise.
 		snprintf(line1Contents, sizeof(line1Contents), "A2M  %c%c%c         %3hhd",
-			 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), rssi );
+			 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() ? 'M' : ' '), rssi );
 		_display.println(line1Contents);
 		printWifiBars(rssi);
 	}
 #else // LARGE_DISPLAY
 	// There's ten characters we can play with, width wise.
 	snprintf(line1Contents, sizeof(line1Contents), "%s%c%c%c", "A2M    ",
-		 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
+		 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() ? 'M' : ' ') );
 	_display.println(line1Contents);
 #endif // LARGE_DISPLAY
 
