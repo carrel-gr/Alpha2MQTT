@@ -30,6 +30,9 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define MP_ESP8266
 #define MP_XIAO_ESP32C6
 
+// Define this to enable OTA updates through the Arduino IDE
+#define USE_ARDUINO_OTA
+
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
 // Don't set this if using the ESP8266 OLED Shield 64x48 display.
 #define LARGE_DISPLAY

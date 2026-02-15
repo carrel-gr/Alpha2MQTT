@@ -30,6 +30,9 @@ First, go and customise options at the top of Definitions.h!
 #define LED_BUILTIN 2
 #endif // ! MP_XIAO_ESP32C6
 #endif
+#ifdef USE_ARDUINO_OTA
+#include <ArduinoOTA.h>
+#endif // USE_ARDUINO_OTA
 #include <DNSServer.h>
 #include <WiFiManager.h>
 #include <Preferences.h>
@@ -42,7 +45,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.68";
+char _version[6] = "v2.69";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -406,6 +409,10 @@ void setup()
 		}
 	}
 
+#ifdef USE_ARDUINO_OTA
+	ArduinoOTA.begin();
+#endif // USE_ARDUINO_OTA
+
 	// Get the serial number (especially prefix for error codes)
 	getSerialNumber();
 
@@ -566,6 +573,10 @@ loop()
 		mqttReconnect();
 		resendHaData = true;
 	}
+
+#ifdef USE_ARDUINO_OTA
+	ArduinoOTA.handle();
+#endif // USE_ARDUINO_OTA
 
 	// make sure mqtt is still connected
 	if ((!_mqtt.connected()) || !_mqtt.loop()) {
@@ -3094,6 +3105,7 @@ isGridOnline(void)
 	enum gridStatus ret;
 
 	switch (opData.essInverterMode) {
+	case INVERTER_OPERATION_MODE_WAIT_MODE:
 	case INVERTER_OPERATION_MODE_ONLINE_MODE:
 	case INVERTER_OPERATION_MODE_CHECK_MODE:
 		ret = gridStatus::gridOnline;
