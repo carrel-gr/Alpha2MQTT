@@ -1064,7 +1064,7 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 	}
 	case REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT:
 	{
-		rs->returnDataType = modbusReturnDataType::unsignedShort;
+		rs->returnDataType = modbusReturnDataType::signedShort;
 		rs->registerCount = 1;
 		break;
 	}
@@ -3423,9 +3423,9 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		}
 		case REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT:
 		{
-			// Type: Unsigned Short
+			// Type: Signed Short
 			// 0.1A/bit
-			sprintf(rs->dataValueFormatted, "%0.02f", rs->unsignedShortValue * 0.1);
+			sprintf(rs->dataValueFormatted, "%0.02f", rs->signedShortValue * 0.1);
 			break;
 		}
 		case REG_INVERTER_HOME_R_INVERTER_BAT_POWER:

@@ -30,8 +30,9 @@ Customise these options as per README.txt.  Please read README.txt before contin
 //#define MP_ESP8266
 #define MP_XIAO_ESP32C6
 
-// Define this to enable OTA updates through the Arduino IDE
-#define USE_ARDUINO_OTA
+// Define this to enable OTA updates through ElegantOTA
+// You must install the ElegantOTA library
+#define USE_OTA
 
 // Display parameters - Set LARGE_DISPLAY for 128x64 oled
 // Don't set this if using the ESP8266 OLED Shield 64x48 display.
@@ -415,7 +416,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 #define REG_INVERTER_HOME_R_WORKING_MODE											0x0440	// <<Note5 - INVERTER OPERATION LOOKUP>>// 2 Bytes		// Unsigned Short
 #ifdef EMS_35_36
 #define REG_INVERTER_HOME_R_INVERTER_BAT_VOLTAGE								0x0441	// 1V/bit							// 2 Bytes		// Unsigned Short
-#define REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT								0x0442	// 0.1A/bit							// 2 Bytes		// Unsigned Short
+#define REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT								0x0442	// 0.1A/bit							// 2 Bytes		// Signed Short (Spec is wrong! It says "unsigned".)
 #define REG_INVERTER_HOME_R_INVERTER_BAT_POWER									0x0443	// 1W/bit							// 2 Bytes		// Signed Short
 #define REG_INVERTER_HOME_R_INVERTER_TOTAL_REACT_POWER_1							0x0444	// 1W/bit							// 4 Bytes		// Signed Int
 //#define REG_INVERTER_HOME_R_INVERTER_TOTAL_REACT_POWER_2							0x0445	// 1W/bit
@@ -1316,6 +1317,8 @@ enum mqttEntityId {
 	entityInverterWarnings,
 	entitySystemFaults,
 	entityInverterMode,
+	entityBatVoltage,
+	entityBatCurrent,
 	entityGridReg,
 	entityRegNum,
 	entityRegValue
