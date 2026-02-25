@@ -30,6 +30,13 @@ First, go and customise options at the top of Definitions.h!
 #define LED_BUILTIN 2
 #endif // ! MP_XIAO_ESP32C6
 #endif
+#ifdef USE_OTA
+#include <ElegantOTA.h>
+#if defined MP_ESP8266
+#else
+WebServer otaServer(80);
+#endif
+#endif // USE_OTA
 #include <DNSServer.h>
 #include <WiFiManager.h>
 #include <Preferences.h>
@@ -42,7 +49,7 @@ First, go and customise options at the top of Definitions.h!
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.67";
+char _version[6] = "v2.70";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -197,6 +204,8 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityInverterWarnings,   "Inverter_Warnings",    mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
 	{ mqttEntityId::entitySystemFaults,       "System_Faults",        mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBinaryProblem },
 	{ mqttEntityId::entityInverterMode,       "Inverter_Mode",        mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassInfo },
+	{ mqttEntityId::entityBatVoltage,         "Battery_Voltage",      mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassVoltage },
+	{ mqttEntityId::entityBatCurrent,         "Battery_Current",      mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassCurrent },
 	{ mqttEntityId::entityGridReg,            "Grid_Regulation",      mqttUpdateFreq::freqOneDay,  false, false, homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityRegNum,             "Register_Number",      mqttUpdateFreq::freqOneMin,  true,  false, homeAssistantClass::haClassBox },
 	{ mqttEntityId::entityRegValue,           "Register_Value",       mqttUpdateFreq::freqOneMin,  false, false, homeAssistantClass::haClassInfo }
@@ -301,6 +310,13 @@ void setup()
 	}
 
 	// Configure WIFI
+#ifdef MP_XIAO_ESP32C6
+	pinMode(WIFI_ENABLE, OUTPUT);
+	digitalWrite(WIFI_ENABLE, LOW);
+	delay(100);
+	pinMode(WIFI_ANT_CONFIG, OUTPUT);
+	digitalWrite(WIFI_ANT_CONFIG, config.extAntenna ? HIGH : LOW);
+#endif // MP_XIAO_ESP32C6
 	setupWifi(true);
 
 	// Configure MQTT to the address and port specified above
@@ -398,6 +414,11 @@ void setup()
 			gotResponse = true;
 		}
 	}
+
+#ifdef USE_OTA
+	ElegantOTA.begin(&otaServer);
+	otaServer.begin();
+#endif // USE_OTA
 
 	// Get the serial number (especially prefix for error codes)
 	getSerialNumber();
@@ -560,6 +581,11 @@ loop()
 		resendHaData = true;
 	}
 
+#ifdef USE_OTA
+	otaServer.handleClient();
+	ElegantOTA.loop();
+#endif // USE_OTA
+
 	// make sure mqtt is still connected
 	if ((!_mqtt.connected()) || !_mqtt.loop()) {
 		mqttReconnect();
@@ -638,27 +664,17 @@ setupWifi(bool initialConnect)
 	// We start by connecting to a WiFi network
 #ifdef DEBUG_OVER_SERIAL
 	if (initialConnect) {
-		sprintf(_debugOutput, "Connecting to %s", WIFI_SSID);
+		sprintf(_debugOutput, "Connecting to %s", config.wifiSSID.c_str());
 	} else {
-		sprintf(_debugOutput, "Reconnect to %s", WIFI_SSID);
+		sprintf(_debugOutput, "Reconnect to %s", config.wifiSSID.c_str());
 	}
 	Serial.println(_debugOutput);
 #endif
-	if (initialConnect) {
-		WiFi.disconnect(); // If it auto-started, restart it our way.
-		delay(100);
-#ifdef MP_XIAO_ESP32C6
-		pinMode(WIFI_ENABLE, OUTPUT);
-		digitalWrite(WIFI_ENABLE, LOW);
-		delay(100);
-		pinMode(WIFI_ANT_CONFIG, OUTPUT);
-		digitalWrite(WIFI_ANT_CONFIG, config.extAntenna ? HIGH : LOW);
-#endif // MP_XIAO_ESP32C6
 #ifdef DEBUG_WIFI
-	} else {
+	if (!initialConnect) {
 		wifiReconnects++;
-#endif // DEBUG_WIFI
 	}
+#endif // DEBUG_WIFI
 
 	// And continually try to connect to WiFi.
 	// If it doesn't, the device will just wait here before continuing
@@ -690,41 +706,43 @@ setupWifi(bool initialConnect)
 			// And connect to the details defined at the top
 			WiFi.begin(config.wifiSSID.c_str(), config.wifiPass.c_str());
 
+			if (tries != 0) { // Don't change/set power first time through
 #if defined MP_ESP8266
-			wifiPower -= WIFI_POWER_DECREMENT;
-			if (wifiPower < WIFI_POWER_MIN) {
-				wifiPower = WIFI_POWER_MAX;
-			}
-			WiFi.setOutputPower(wifiPower);
-			snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
+				wifiPower -= WIFI_POWER_DECREMENT;
+				if (wifiPower < WIFI_POWER_MIN) {
+					wifiPower = WIFI_POWER_MAX;
+				}
+				WiFi.setOutputPower(wifiPower);
+				snprintf(line4, sizeof(line4), "TX: %0.2f", wifiPower);
 #else
-			switch (wifiPower) {
-			case WIFI_POWER_19_5dBm:
-				wifiPower = WIFI_POWER_19dBm;
-				break;
-			case WIFI_POWER_19dBm:
-				wifiPower = WIFI_POWER_18_5dBm;
-				break;
-			case WIFI_POWER_18_5dBm:
-				wifiPower = WIFI_POWER_17dBm;
-				break;
-			case WIFI_POWER_17dBm:
-				wifiPower = WIFI_POWER_15dBm;
-				break;
-			case WIFI_POWER_15dBm:
-				wifiPower = WIFI_POWER_13dBm;
-				break;
-			case WIFI_POWER_13dBm:
-				wifiPower = WIFI_POWER_11dBm;
-				break;
-			case WIFI_POWER_11dBm:
-			default:
-				wifiPower = WIFI_POWER_19_5dBm;
-				break;
-			}
-			WiFi.setTxPower(wifiPower);
-			snprintf(line4, sizeof(line4), "TX: %0.01fdBm", (int)wifiPower / 4.0f);
+				switch (wifiPower) {
+				case WIFI_POWER_19_5dBm:
+					wifiPower = WIFI_POWER_19dBm;
+					break;
+				case WIFI_POWER_19dBm:
+					wifiPower = WIFI_POWER_18_5dBm;
+					break;
+				case WIFI_POWER_18_5dBm:
+					wifiPower = WIFI_POWER_17dBm;
+					break;
+				case WIFI_POWER_17dBm:
+					wifiPower = WIFI_POWER_15dBm;
+					break;
+				case WIFI_POWER_15dBm:
+					wifiPower = WIFI_POWER_13dBm;
+					break;
+				case WIFI_POWER_13dBm:
+					wifiPower = WIFI_POWER_11dBm;
+					break;
+				case WIFI_POWER_11dBm:
+				default:
+					wifiPower = WIFI_POWER_19_5dBm;
+					break;
+				}
+				WiFi.setTxPower(wifiPower);
+				snprintf(line4, sizeof(line4), "TX: %0.01fdBm", (int)wifiPower / 4.0f);
 #endif
+			}
 		}
 
 		if (initialConnect) {
@@ -817,14 +835,14 @@ updateOLED(bool justStatus, const char* line2, const char* line3, const char* li
 		int8_t rssi = WiFi.RSSI();
 		// There's 20 characters we can play with, width wise.
 		snprintf(line1Contents, sizeof(line1Contents), "A2M  %c%c%c         %3hhd",
-			 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' '), rssi );
+			 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() ? 'M' : ' '), rssi );
 		_display.println(line1Contents);
 		printWifiBars(rssi);
 	}
 #else // LARGE_DISPLAY
 	// There's ten characters we can play with, width wise.
 	snprintf(line1Contents, sizeof(line1Contents), "%s%c%c%c", "A2M    ",
-		 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() && _mqtt.loop() ? 'M' : ' ') );
+		 _oledOperatingIndicator, (WiFi.status() == WL_CONNECTED ? 'W' : ' '), (_mqtt.connected() ? 'M' : ' ') );
 	_display.println(line1Contents);
 #endif // LARGE_DISPLAY
 
@@ -1661,24 +1679,19 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		break;
 	case mqttEntityId::entitySystemFaults:
 		{
-			unsigned int count = 0, sf, sf1;
+			unsigned int count = 0, sf1;
 #ifdef DEBUG_NO_RS485
-			sf = 0x50; sf1 = 0x51;
+			sf1 = 0x51;
 			result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
-			result = _registerHandler->readHandledRegister(REG_SYSTEM_INFO_R_SYSTEM_FAULT, rs);
-			sf = rs->unsignedIntValue;
-			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_FAULT_1, rs);
-				sf1 = rs->unsignedIntValue;
-			}
+			result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_FAULT_1, rs);
+			sf1 = rs->unsignedIntValue;
 #endif // DEBUG_NO_RS485
 			if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
-				count = popcount(sf) + popcount(sf1);
+				count = popcount(sf1);
 				sprintf(rs->dataValueFormatted, "{ \"numEvents\": %u, "
-								  "\"System Faults (0x%04X)\": \"0x%08X\","
 								  "\"System Faults 1 (0x%04X)\": \"0x%08X\" }",
-					count, REG_SYSTEM_INFO_R_SYSTEM_FAULT, sf, REG_SYSTEM_OP_R_SYSTEM_FAULT_1, sf1);
+					count, REG_SYSTEM_OP_R_SYSTEM_FAULT_1, sf1);
 			}
 		}
 		break;
@@ -1708,6 +1721,42 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
 #else // DEBUG_NO_RS485
 		result = _registerHandler->readHandledRegister(REG_SYSTEM_OP_R_SYSTEM_TOTAL_PV_ENERGY_1, rs);
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityBatVoltage:
+		{
+			uint16_t bv, iv;
+#ifdef DEBUG_NO_RS485
+			bv = 111; iv = 112;
+			result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+			result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_VOLTAGE, rs);
+			bv = rs->unsignedShortValue;
+                        if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_BAT_VOLTAGE, rs);
+			}
+			iv = rs->unsignedShortValue;
+			sprintf(rs->dataValueFormatted, "{ \"Battery DC Voltage\": %0.1f, "
+				"\"Inverter DC Voltage\": %hu }", bv * 0.1, iv);
+		}
+#endif // DEBUG_NO_RS485
+		break;
+	case mqttEntityId::entityBatCurrent:
+		{
+			int16_t bc, ic;
+#ifdef DEBUG_NO_RS485
+			bc = 222; ic = 223;
+			result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+			result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_CURRENT, rs);
+			bc = rs->signedShortValue;
+                        if (result == modbusRequestAndResponseStatusValues::readDataRegisterSuccess) {
+				result = _registerHandler->readHandledRegister(REG_INVERTER_HOME_R_INVERTER_BAT_CURRENT, rs);
+			}
+			ic = rs->signedShortValue;
+			sprintf(rs->dataValueFormatted, "{ \"Battery DC Current\": %0.1f, "
+				"\"Inverter DC Current\": %0.1f }", bc * 0.1, ic * 0.1);
+		}
 #endif // DEBUG_NO_RS485
 		break;
 	case mqttEntityId::entityFrequency:
@@ -2302,6 +2351,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entitySystemFaults:
 		sprintf(stateAddition, ", \"icon\": \"mdi:alert-decagram-outline\"");
 		break;
+	case mqttEntityId::entityBatVoltage:
+	case mqttEntityId::entityBatCurrent:
+		snprintf(stateAddition, sizeof(stateAddition),
+			 ", \"entity_category\": \"diagnostic\""
+			 ", \"icon\": \"mdi:current-dc\"");
+		break;
 #ifdef DEBUG_FREEMEM
 	case mqttEntityId::entityFreemem:
 		sprintf(stateAddition, ", \"icon\": \"mdi:memory\"");
@@ -2364,6 +2419,22 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 			haUniqueId, singleEntity->mqttName,
 			haUniqueId, singleEntity->mqttName);
 		break;
+	case entityBatVoltage:
+		snprintf(stateAddition, sizeof(stateAddition),
+			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\""
+			", \"value_template\": \"{{ value_json[\\\"Inverter DC Voltage\\\"] | default(\\\"\\\") }}\""
+			", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
+			haUniqueId, singleEntity->mqttName,
+			haUniqueId, singleEntity->mqttName);
+		break;
+	case entityBatCurrent:
+		snprintf(stateAddition, sizeof(stateAddition),
+			", \"state_topic\": \"" DEVICE_NAME "/%s/%s/state\""
+			", \"value_template\": \"{{ value_json[\\\"Inverter DC Current\\\"] | default(\\\"\\\") }}\""
+			", \"json_attributes_topic\": \"" DEVICE_NAME "/%s/%s/state\"",
+			haUniqueId, singleEntity->mqttName,
+			haUniqueId, singleEntity->mqttName);
+		break;
 	case mqttEntityId::entityRs485Avail:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"state_topic\": \"%s\""
@@ -2417,6 +2488,8 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case entityRegNum:
 	case entityRegValue:
 	case entityInverterMode:
+	case entityBatVoltage:
+	case entityBatCurrent:
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ \\\"online\\\" if value_json.a2mStatus == \\\"online\\\" and value_json.rs485Status == \\\"OK\\\" else \\\"offline\\\" }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
@@ -3095,6 +3168,7 @@ isGridOnline(void)
 	enum gridStatus ret;
 
 	switch (opData.essInverterMode) {
+	case INVERTER_OPERATION_MODE_WAIT_MODE:
 	case INVERTER_OPERATION_MODE_ONLINE_MODE:
 	case INVERTER_OPERATION_MODE_CHECK_MODE:
 		ret = gridStatus::gridOnline;

@@ -24,7 +24,7 @@ The configuration (WiFi and MQTT settings) of this hardware itself is now done v
 
 ## Steps to get running.
 - Build the hardware.  (See [HARDWARE](#hardware) below)
-- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing) for setting up the software environment and compiling/loading.  Few, if any, changes are now needed in `Definitions.h` and you should follow the instructions in the file itself.  (Do not follow the original README instructions for modifying `Definitions.h`.)  Only a small number of hardware details *may* need to be changed in the top section of `Definitions.h`.
+- Configure, build and load the software.  Follow the instructions in the [original README](README-orig.md#flashing) for setting up the software environment and compiling/loading.  Few, if any, changes are now needed in `Definitions.h` and you should follow the instructions in the file itself.  (Do not follow the original README instructions for modifying `Definitions.h`.)  Only a small number of hardware details *may* need to be changed in the top section of `Definitions.h`.  Also, in addition to the origial README instructions, you will need to add the [WifiManager](https://github.com/tzapu/WiFiManager) and [ElegantOTA](https://github.com/ayushsharma82/ElegantOTA) libraries.
 - Enable MQTT discovery in Home Assistant (if this isn't on already).
 - Plug in RS485 and power (USB).  Then [configure WiFi and MQTT](#configuring-wifi-and-mqtt).
 - At this point your device/entities will appear under the MQTT integration as "A2M-ALXXXXXXXXXXXXX".)  You can now see and monitor your ESS in HA.
