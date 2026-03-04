@@ -1292,6 +1292,7 @@ enum mqttEntityId {
 	entityInverterVersion,
 	entityEmsSn,
 	entityEmsVersion,
+	entityBmuVersion,
 	entityBatSoc,
 	entityBatPwr,
 	entityBatEnergyCharge,

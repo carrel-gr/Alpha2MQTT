@@ -2523,8 +2523,12 @@ modbusRequestAndResponseStatusValues RegisterHandler::readHandledRegister(uint16
 		{
 			// Type: Unsigned Short
 			// //
-			// Always returns zero for me
-			sprintf(rs->dataValueFormatted, "%u", rs->unsignedShortValue);
+			{
+				uint16_t high, low;
+				high = rs->unsignedShortValue / 100;
+				low = rs->unsignedShortValue - (high * 100);
+				sprintf(rs->dataValueFormatted, "%u.%02u", high, low);
+			}
 			break;
 		}
 		case REG_BATTERY_HOME_R_LMU_SOFTWARE_VERSION:
