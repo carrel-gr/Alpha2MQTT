@@ -49,7 +49,7 @@ WebServer otaServer(80);
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.71";
+char _version[6] = "v2.72";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -2520,10 +2520,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		break;
 	// Values that shouldn't change. Keep showing even if RS485 is out.
 	case entityInverterSn:
-	case entityInverterVersion:
 	case entityEmsSn:
-	case entityEmsVersion:
-	case entityBmuVersion:
 	case entityBatCap:
 	case entityGridReg:
 	// These entities are truly available even when RS485 is out.
@@ -2544,7 +2541,6 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 #endif // DEBUG_RS485
 	case entityRs485Avail:
 	case entityA2MUptime:
-	case entityA2MVersion:
 	case entityOpMode:
 	case entitySocTarget:
 	case entityChargePwr:
@@ -2553,6 +2549,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ value_json.a2mStatus | default(\\\"\\\") }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
+		break;
+	// Items to leave "always" available
+	case entityInverterVersion:
+	case entityEmsVersion:
+	case entityBmuVersion:
+	case entityA2MVersion:
 		break;
 	}
 	resultAddedToPayload = addToPayload(stateAddition);
