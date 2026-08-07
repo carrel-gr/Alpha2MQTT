@@ -80,7 +80,7 @@ Customise these options as per README.txt.  Please read README.txt before contin
 
 // The SOC Target value is a percent value.  Define MIN/MAX range for what HA can use.
 #define SOC_TARGET_MAX 100
-#define SOC_TARGET_MIN 30
+#define SOC_TARGET_MIN 10
 
 // Set your EMS version.  Either EMS2.5 or EMS3.5/EMS3.6
 // If 3.5/3.6 is not set, then you get 2.5

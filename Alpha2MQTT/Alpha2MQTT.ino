@@ -49,7 +49,7 @@ WebServer otaServer(80);
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.72";
+char _version[6] = "v2.73";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
