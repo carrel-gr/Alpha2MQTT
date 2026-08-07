@@ -49,7 +49,7 @@ WebServer otaServer(80);
 #define popcount __builtin_popcount
 
 // Device parameters
-char _version[6] = "v2.70";
+char _version[6] = "v2.73";
 char deviceSerialNumber[17]; // 8 registers = max 16 chars (usually 15)
 char deviceBatteryType[32];
 char haUniqueId[32];
@@ -179,6 +179,7 @@ static struct mqttState _mqttAllEntities[] =
 	{ mqttEntityId::entityInverterSn,         "Inverter_SN",          mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityEmsVersion,         "EMS_version",          mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityEmsSn,              "EMS_SN",               mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
+	{ mqttEntityId::entityBmuVersion,         "BMU_version",          mqttUpdateFreq::freqOneDay,  false, true,  homeAssistantClass::haClassInfo },
 	{ mqttEntityId::entityBatSoc,             "State_of_Charge",      mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassBattery },
 	{ mqttEntityId::entityBatPwr,             "ESS_Power",            mqttUpdateFreq::freqTenSec,  false, true,  homeAssistantClass::haClassPower },
 	{ mqttEntityId::entityBatEnergyCharge,    "ESS_Energy_Charge",    mqttUpdateFreq::freqOneMin,  false, true,  homeAssistantClass::haClassEnergy },
@@ -1973,6 +1974,14 @@ readEntity(mqttState *singleEntity, modbusRequestAndResponse* rs)
 		}
 #endif // DEBUG_NO_RS485
 		break;
+	case mqttEntityId::entityBmuVersion:
+#ifdef DEBUG_NO_RS485
+		sprintf(rs->dataValueFormatted, "%s", "fake.ver");
+		result = modbusRequestAndResponseStatusValues::readDataRegisterSuccess;
+#else // DEBUG_NO_RS485
+		result = _registerHandler->readHandledRegister(REG_BATTERY_HOME_R_BMU_SOFTWARE_VERSION, rs);
+#endif // DEBUG_NO_RS485
+		break;
 #ifdef DEBUG_WIFI
 	case mqttEntityId::entityRSSI:
 		sprintf(rs->dataValueFormatted, "%ld", WiFi.RSSI());
@@ -2335,6 +2344,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 	case mqttEntityId::entityA2MVersion:
 	case mqttEntityId::entityInverterVersion:
 	case mqttEntityId::entityEmsVersion:
+	case mqttEntityId::entityBmuVersion:
 		sprintf(stateAddition, ", \"icon\": \"mdi:numeric\"");
 		break;
 	case mqttEntityId::entityInverterSn:
@@ -2510,9 +2520,7 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		break;
 	// Values that shouldn't change. Keep showing even if RS485 is out.
 	case entityInverterSn:
-	case entityInverterVersion:
 	case entityEmsSn:
-	case entityEmsVersion:
 	case entityBatCap:
 	case entityGridReg:
 	// These entities are truly available even when RS485 is out.
@@ -2533,7 +2541,6 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 #endif // DEBUG_RS485
 	case entityRs485Avail:
 	case entityA2MUptime:
-	case entityA2MVersion:
 	case entityOpMode:
 	case entitySocTarget:
 	case entityChargePwr:
@@ -2542,6 +2549,12 @@ addConfig(mqttState *singleEntity, modbusRequestAndResponseStatusValues& resultA
 		snprintf(stateAddition, sizeof(stateAddition),
 			", \"availability_template\": \"{{ value_json.a2mStatus | default(\\\"\\\") }}\""
 			", \"availability_topic\": \"%s\"", statusTopic);
+		break;
+	// Items to leave "always" available
+	case entityInverterVersion:
+	case entityEmsVersion:
+	case entityBmuVersion:
+	case entityA2MVersion:
 		break;
 	}
 	resultAddedToPayload = addToPayload(stateAddition);
